@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.vincenzo.shopping.grpc.product";
+option java_outer_classname = "ProductProto";
+
+package product;
+
+service ProductService {
+  rpc GetProduct (GetProductRequest) returns (ProductResponse);
+  rpc GetProductList (GetProductListRequest) returns (ProductListResponse);
+  rpc UpdateStock (UpdateStockRequest) returns (ProductResponse);
+}
+
+message GetProductRequest {
+  int64 product_id = 1;
+}
+
+message GetProductListRequest {
+  repeated int64 product_ids = 1;
+}
+
+message UpdateStockRequest {
+  int64 product_id = 1;
+  int32 quantity_change = 2;
+}
+
+message ProductResponse {
+  int64 id = 1;
+  string name = 2;
+  int64 price = 3;
+  int32 stock = 4;
+  string seller_id = 5;
+}
+
+message ProductListResponse {
+  repeated ProductResponse products = 1;
+}
