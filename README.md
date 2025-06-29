@@ -4,10 +4,10 @@
 
 ## 프로젝트 구조
 
-- **common**: 공통 모듈 (Kafka, gRPC 관련 공통 클래스)
+- **common**: 공통 모듈 (Kafka, gRPC Proto 파일 및 공통 클래스)
 - **member-service**: 회원 서비스 (포트: 8081, gRPC: 9090)
 - **product-service**: 상품 서비스 (포트: 8082, gRPC: 9091)
-- **order-service**: 주문 서비스 (포트: 8083, gRPC: 9092)
+- **order-service**: 주문 서비스 (포트: 8083, gRPC: 9094)
 - **payment-service**: 결제 서비스 (포트: 8084, gRPC: 9093)
 
 ## 기술 스택
@@ -17,7 +17,7 @@
 - JDK 17
 - MySQL 8.0
 - Apache Kafka
-- gRPC
+- gRPC (서비스 간 통신)
 - Hexagonal Architecture
 
 ## 실행 방법
@@ -35,6 +35,9 @@ docker-compose ps
 ### 2. 프로젝트 빌드
 
 ```bash
+# Gradle Wrapper 설정 (최초 1회)
+gradle wrapper --gradle-version=8.5
+
 # 프로젝트 빌드
 ./gradlew clean build
 
@@ -65,6 +68,7 @@ docker-compose ps
 
 ### 4. API 테스트
 
+#### REST API 테스트
 ```bash
 # Member Service Hello World
 curl http://localhost:8081/api/members/hello
@@ -79,12 +83,30 @@ curl -X POST http://localhost:8081/api/members \
   }'
 ```
 
+#### gRPC 통신 테스트
+```bash
+# Order Service에서 Member Service 호출 (gRPC)
+curl http://localhost:8083/api/orders/test-grpc/member/1
+
+# Order Service에서 Product Service 호출 (gRPC)
+curl http://localhost:8083/api/orders/test-grpc/product/1
+```
+
 ## 서비스 포트
 
-- Member Service: HTTP 8081, gRPC 9090
-- Product Service: HTTP 8082, gRPC 9091
-- Order Service: HTTP 8083, gRPC 9092
-- Payment Service: HTTP 8084, gRPC 9093
+### HTTP 포트
+- Member Service: 8081
+- Product Service: 8082
+- Order Service: 8083
+- Payment Service: 8084
+
+### gRPC 포트
+- Member Service: 9090
+- Product Service: 9091
+- Order Service: 9094
+- Payment Service: 9093
+
+### 인프라 포트
 - MySQL: 3306
 - Kafka: 9092
 - Zookeeper: 2181
@@ -106,3 +128,30 @@ curl -X POST http://localhost:8081/api/members \
 - product_db: 상품 정보
 - order_db: 주문 정보
 - payment_db: 결제 정보
+
+## gRPC 설정
+
+### Proto 파일 위치
+- `common/src/main/proto/member.proto`: 회원 서비스 Proto 정의
+- `common/src/main/proto/product.proto`: 상품 서비스 Proto 정의
+
+### gRPC 서비스
+- **MemberService**: 회원 조회, 포인트 업데이트
+- **ProductService**: 상품 조회, 재고 업데이트
+
+### gRPC 클라이언트 설정
+Order Service와 Payment Service는 gRPC 클라이언트를 통해 다른 서비스와 통신합니다:
+- `@GrpcClient` 어노테이션을 사용한 자동 설정
+- application.yml에서 각 서비스 주소 설정
+
+## Kafka 설정
+
+### Topic
+- `order-events`: 주문 이벤트
+- `payment-events`: 결제 이벤트
+
+### Producer
+- Order Service: 주문 생성 시 이벤트 발행
+
+### Consumer  
+- Payment Service: 주문 이벤트 구독하여 결제 처리
