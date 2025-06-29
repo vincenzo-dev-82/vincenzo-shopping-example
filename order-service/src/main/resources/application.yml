@@ -23,7 +23,7 @@ spring:
 
 grpc:
   server:
-    port: 9092
+    port: 9094  # 변경: 9092 -> 9094 (Kafka와 중복 방지)
   client:
     member-service:
       address: localhost:9090
