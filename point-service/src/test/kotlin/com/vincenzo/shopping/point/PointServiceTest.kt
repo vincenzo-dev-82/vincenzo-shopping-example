@@ -8,17 +8,17 @@ import com.vincenzo.shopping.point.application.service.PointService
 import com.vincenzo.shopping.point.domain.PointBalance
 import com.vincenzo.shopping.point.domain.PointTransaction
 import com.vincenzo.shopping.point.domain.TransactionType
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.mockito.Mockito.*
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 
 class PointServiceTest {
 
-    private val pointBalanceRepository: PointBalanceRepository = mockk()
-    private val pointTransactionRepository: PointTransactionRepository = mockk()
+    private val pointBalanceRepository: PointBalanceRepository = mock(PointBalanceRepository::class.java)
+    private val pointTransactionRepository: PointTransactionRepository = mock(PointTransactionRepository::class.java)
     private val pointService = PointService(pointBalanceRepository, pointTransactionRepository)
 
     @Test
@@ -44,9 +44,9 @@ class PointServiceTest {
             description = command.description
         )
         
-        every { pointBalanceRepository.findByMemberId(command.memberId) } returns balance
-        every { pointTransactionRepository.save(any()) } returns transaction
-        every { pointBalanceRepository.save(any()) } returns balance.copy(balance = balance.balance + command.amount)
+        whenever(pointBalanceRepository.findByMemberId(command.memberId)).thenReturn(balance)
+        whenever(pointTransactionRepository.save(any())).thenReturn(transaction)
+        whenever(pointBalanceRepository.save(any())).thenReturn(balance.copy(balance = balance.balance + command.amount))
 
         // when
         val result = pointService.chargePoint(command)
@@ -55,9 +55,9 @@ class PointServiceTest {
         assertEquals(TransactionType.CHARGE, result.type)
         assertEquals(command.amount, result.amount)
         
-        verify(exactly = 1) { pointBalanceRepository.findByMemberId(command.memberId) }
-        verify(exactly = 1) { pointTransactionRepository.save(any()) }
-        verify(exactly = 1) { pointBalanceRepository.save(any()) }
+        verify(pointBalanceRepository, times(1)).findByMemberId(command.memberId)
+        verify(pointTransactionRepository, times(1)).save(any())
+        verify(pointBalanceRepository, times(1)).save(any())
     }
 
     @Test
@@ -85,9 +85,9 @@ class PointServiceTest {
             referenceId = command.referenceId
         )
         
-        every { pointBalanceRepository.findByMemberId(command.memberId) } returns balance
-        every { pointTransactionRepository.save(any()) } returns transaction
-        every { pointBalanceRepository.save(any()) } returns balance.copy(balance = balance.balance - command.amount)
+        whenever(pointBalanceRepository.findByMemberId(command.memberId)).thenReturn(balance)
+        whenever(pointTransactionRepository.save(any())).thenReturn(transaction)
+        whenever(pointBalanceRepository.save(any())).thenReturn(balance.copy(balance = balance.balance - command.amount))
 
         // when
         val result = pointService.usePoint(command)
@@ -96,9 +96,9 @@ class PointServiceTest {
         assertEquals(TransactionType.USE, result.type)
         assertEquals(-command.amount, result.amount)
         
-        verify(exactly = 1) { pointBalanceRepository.findByMemberId(command.memberId) }
-        verify(exactly = 1) { pointTransactionRepository.save(any()) }
-        verify(exactly = 1) { pointBalanceRepository.save(any()) }
+        verify(pointBalanceRepository, times(1)).findByMemberId(command.memberId)
+        verify(pointTransactionRepository, times(1)).save(any())
+        verify(pointBalanceRepository, times(1)).save(any())
     }
 
     @Test
@@ -117,15 +117,15 @@ class PointServiceTest {
             balance = 5000  // 잔액보다 많이 사용하려고 함
         )
         
-        every { pointBalanceRepository.findByMemberId(command.memberId) } returns balance
+        whenever(pointBalanceRepository.findByMemberId(command.memberId)).thenReturn(balance)
 
         // when & then
         assertThrows<IllegalArgumentException> {
             pointService.usePoint(command)
         }
         
-        verify(exactly = 1) { pointBalanceRepository.findByMemberId(command.memberId) }
-        verify(exactly = 0) { pointTransactionRepository.save(any()) }
-        verify(exactly = 0) { pointBalanceRepository.save(any()) }
+        verify(pointBalanceRepository, times(1)).findByMemberId(command.memberId)
+        verify(pointTransactionRepository, never()).save(any())
+        verify(pointBalanceRepository, never()).save(any())
     }
 }
