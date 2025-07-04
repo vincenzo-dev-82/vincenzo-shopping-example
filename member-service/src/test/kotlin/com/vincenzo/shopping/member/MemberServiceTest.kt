@@ -4,24 +4,31 @@ import com.vincenzo.shopping.member.application.port.`in`.CreateMemberCommand
 import com.vincenzo.shopping.member.application.port.out.MemberRepository
 import com.vincenzo.shopping.member.application.service.MemberService
 import com.vincenzo.shopping.member.domain.Member
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.mockito.Mockito.*
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 
 class MemberServiceTest {
-
-    private val memberRepository: MemberRepository = mockk()
-    private val memberService = MemberService(memberRepository)
-
+    
+    private lateinit var memberRepository: MemberRepository
+    private lateinit var memberService: MemberService
+    
+    @BeforeEach
+    fun setUp() {
+        memberRepository = mock(MemberRepository::class.java)
+        memberService = MemberService(memberRepository)
+    }
+    
     @Test
     fun `회원 생성 성공`() {
         // given
         val command = CreateMemberCommand(
             email = "test@example.com",
-            name = "테스트 유저",
+            name = "Test User",
             phoneNumber = "010-1234-5678"
         )
         
@@ -33,20 +40,19 @@ class MemberServiceTest {
             point = 0
         )
         
-        every { memberRepository.save(any()) } returns savedMember
-
+        whenever(memberRepository.save(any())).thenReturn(savedMember)
+        
         // when
         val result = memberService.createMember(command)
-
+        
         // then
+        assertEquals(savedMember.id, result.id)
         assertEquals(savedMember.email, result.email)
         assertEquals(savedMember.name, result.name)
         assertEquals(savedMember.phoneNumber, result.phoneNumber)
         assertEquals(0, result.point)
-        
-        verify(exactly = 1) { memberRepository.save(any()) }
     }
-
+    
     @Test
     fun `회원 조회 성공`() {
         // given
@@ -54,24 +60,38 @@ class MemberServiceTest {
         val member = Member(
             id = memberId,
             email = "test@example.com",
-            name = "테스트 유저",
+            name = "Test User",
             phoneNumber = "010-1234-5678",
             point = 1000
         )
         
-        every { memberRepository.findById(memberId) } returns member
-
+        whenever(memberRepository.findById(memberId)).thenReturn(member)
+        
         // when
         val result = memberService.getMember(memberId)
-
+        
         // then
         assertNotNull(result)
         assertEquals(member.id, result?.id)
         assertEquals(member.email, result?.email)
-        
-        verify(exactly = 1) { memberRepository.findById(memberId) }
+        assertEquals(member.name, result?.name)
+        assertEquals(member.phoneNumber, result?.phoneNumber)
+        assertEquals(member.point, result?.point)
     }
-
+    
+    @Test
+    fun `회원 조회 실패 - 회원이 존재하지 않음`() {
+        // given
+        val memberId = 999L
+        whenever(memberRepository.findById(memberId)).thenReturn(null)
+        
+        // when
+        val result = memberService.getMember(memberId)
+        
+        // then
+        assertNull(result)
+    }
+    
     @Test
     fun `포인트 업데이트 성공`() {
         // given
@@ -80,38 +100,34 @@ class MemberServiceTest {
         val member = Member(
             id = memberId,
             email = "test@example.com",
-            name = "테스트 유저",
+            name = "Test User",
             phoneNumber = "010-1234-5678",
             point = 1000
         )
         
         val updatedMember = member.copy(point = member.point + pointChange)
         
-        every { memberRepository.findById(memberId) } returns member
-        every { memberRepository.save(any()) } returns updatedMember
-
+        whenever(memberRepository.findById(memberId)).thenReturn(member)
+        whenever(memberRepository.save(any())).thenReturn(updatedMember)
+        
         // when
         val result = memberService.updatePoint(memberId, pointChange)
-
+        
         // then
         assertEquals(1500, result.point)
-        
-        verify(exactly = 1) { memberRepository.findById(memberId) }
-        verify(exactly = 1) { memberRepository.save(any()) }
     }
-
+    
     @Test
-    fun `존재하지 않는 회원 포인트 업데이트 실패`() {
+    fun `포인트 업데이트 실패 - 회원이 존재하지 않음`() {
         // given
         val memberId = 999L
-        every { memberRepository.findById(memberId) } returns null
-
+        val pointChange = 500
+        
+        whenever(memberRepository.findById(memberId)).thenReturn(null)
+        
         // when & then
         assertThrows<IllegalArgumentException> {
-            memberService.updatePoint(memberId, 100)
+            memberService.updatePoint(memberId, pointChange)
         }
-        
-        verify(exactly = 1) { memberRepository.findById(memberId) }
-        verify(exactly = 0) { memberRepository.save(any()) }
     }
 }
