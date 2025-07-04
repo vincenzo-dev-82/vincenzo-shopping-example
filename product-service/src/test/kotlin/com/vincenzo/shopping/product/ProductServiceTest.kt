@@ -4,16 +4,16 @@ import com.vincenzo.shopping.product.application.port.`in`.CreateProductCommand
 import com.vincenzo.shopping.product.application.port.out.ProductRepository
 import com.vincenzo.shopping.product.application.service.ProductService
 import com.vincenzo.shopping.product.domain.Product
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.mockito.Mockito.*
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
 
 class ProductServiceTest {
 
-    private val productRepository: ProductRepository = mockk()
+    private val productRepository: ProductRepository = mock(ProductRepository::class.java)
     private val productService = ProductService(productRepository)
 
     @Test
@@ -34,7 +34,7 @@ class ProductServiceTest {
             sellerId = command.sellerId
         )
         
-        every { productRepository.save(any()) } returns savedProduct
+        whenever(productRepository.save(any())).thenReturn(savedProduct)
 
         // when
         val result = productService.createProduct(command)
@@ -45,7 +45,7 @@ class ProductServiceTest {
         assertEquals(savedProduct.stock, result.stock)
         assertEquals(savedProduct.sellerId, result.sellerId)
         
-        verify(exactly = 1) { productRepository.save(any()) }
+        verify(productRepository, times(1)).save(any())
     }
 
     @Test
@@ -63,8 +63,8 @@ class ProductServiceTest {
         
         val updatedProduct = product.copy(stock = product.stock + quantityChange)
         
-        every { productRepository.findById(productId) } returns product
-        every { productRepository.save(any()) } returns updatedProduct
+        whenever(productRepository.findById(productId)).thenReturn(product)
+        whenever(productRepository.save(any())).thenReturn(updatedProduct)
 
         // when
         val result = productService.updateStock(productId, quantityChange)
@@ -72,8 +72,8 @@ class ProductServiceTest {
         // then
         assertEquals(95, result.stock)
         
-        verify(exactly = 1) { productRepository.findById(productId) }
-        verify(exactly = 1) { productRepository.save(any()) }
+        verify(productRepository, times(1)).findById(productId)
+        verify(productRepository, times(1)).save(any())
     }
 
     @Test
@@ -89,14 +89,14 @@ class ProductServiceTest {
             sellerId = "seller001"
         )
         
-        every { productRepository.findById(productId) } returns product
+        whenever(productRepository.findById(productId)).thenReturn(product)
 
         // when & then
         assertThrows<IllegalStateException> {
             productService.updateStock(productId, quantityChange)
         }
         
-        verify(exactly = 1) { productRepository.findById(productId) }
-        verify(exactly = 0) { productRepository.save(any()) }
+        verify(productRepository, times(1)).findById(productId)
+        verify(productRepository, never()).save(any())
     }
 }
