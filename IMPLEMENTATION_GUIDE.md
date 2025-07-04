@@ -1,391 +1,573 @@
-# 구현 설명
+# 캐시노트 마켓 주문 서비스 구현 설명서
 
-## 1. 설계 구조
+## 목차
+1. [프로젝트 개요](#프로젝트-개요)
+2. [설계 구조](#설계-구조)
+3. [설계 시 고민사항](#설계-시-고민사항)
+4. [구현 상세](#구현-상세)
+5. [개선 방향](#개선-방향)
+6. [제약사항](#제약사항)
+7. [트래픽 증가 대응 방안](#트래픽-증가-대응-방안)
+8. [기타 설명](#기타-설명)
 
-### 1.1 전체 아키텍처
-본 프로젝트는 **마이크로서비스 아키텍처(MSA)**와 **헥사고날 아키텍처(Hexagonal Architecture)**를 조합하여 설계되었습니다.
+## 프로젝트 개요
+
+캐시노트 마켓은 다양한 판매자가 다양한 상품을 다양한 결제수단으로 판매하는 이커머스 플랫폼입니다. 
+본 프로젝트는 마이크로서비스 아키텍처와 헥사고날 아키텍처를 적용하여 확장 가능하고 유지보수가 용이한 시스템을 구축했습니다.
+
+### 핵심 요구사항
+- 복합결제 지원 (PG + 포인트 + 쿠폰)
+- BNPL(Buy Now Pay Later) 단독 결제
+- 결제 수단별 제약사항 처리
+- 분산 환경에서의 데이터 일관성 보장
+
+## 설계 구조
+
+### 1. 전체 아키텍처
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         Client (Web/Mobile)                      │
+│                         Client Layer                             │
+│                    (Web, Mobile, API Gateway)                    │
 └─────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
+                                  │
+                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                          API Gateway                             │
-│                    (현재 버전에서는 미구현)                      │
+│                      Application Layer                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────┐│
+│  │   Member    │  │   Product   │  │    Order    │  │ Payment ││
+│  │   Service   │  │   Service   │  │   Service   │  │ Service ││
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────┘│
 └─────────────────────────────────────────────────────────────────┘
-                                    │
-        ┌───────────────┬───────────┴───────────┬─────────────┐
-        ▼               ▼                       ▼             ▼
-┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
-│Member Service │ │Product Service│ │ Order Service │ │Payment Service│
-│   (8081)      │ │   (8082)      │ │   (8083)      │ │   (8084)      │
-└───────────────┘ └───────────────┘ └───────────────┘ └───────────────┘
-        │               │                       │             │
-        └───────────────┴───────────────────────┴─────────────┘
-                                    │
-                    ┌───────────────┴───────────────┐
-                    ▼                               ▼
-            ┌─────────────┐                 ┌─────────────┐
-            │Point Service│                 │    MySQL    │
-            │   (8085)    │                 │   (3306)    │
-            └─────────────┘                 └─────────────┘
-                    │                               │
-                    └───────────────┬───────────────┘
-                                    ▼
-                            ┌─────────────┐
-                            │    Kafka    │
-                            │   (9092)    │
-                            └─────────────┘
+           │                │                │               │
+           ▼                ▼                ▼               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Infrastructure Layer                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
+│  │    MySQL    │  │    Kafka    │  │    gRPC     │            │
+│  │  Database   │  │   Message   │  │Communication│            │
+│  └─────────────┘  └─────────────┘  └─────────────┘            │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 헥사고날 아키텍처
-각 마이크로서비스는 헥사고날 아키텍처로 구성되어 있습니다:
+### 2. 마이크로서비스 아키텍처
+
+각 서비스는 독립적으로 배포 가능하며, 다음과 같은 책임을 가집니다:
+
+#### Member Service
+- 회원 정보 관리
+- 포인트 잔액 관리
+- 회원 인증/인가 (추후 구현)
+
+#### Product Service
+- 상품 정보 관리
+- 재고 관리
+- 판매자 정보 관리
+
+#### Order Service
+- 주문 생성 및 관리
+- 주문 상태 관리
+- 서비스 간 조정자 역할
+
+#### Payment Service
+- 결제 처리
+- 다양한 결제 수단 통합
+- 결제 내역 관리
+
+### 3. 헥사고날 아키텍처 (포트 & 어댑터)
+
+각 서비스는 헥사고날 아키텍처로 구현되어 있습니다:
 
 ```
-서비스 구조:
-├── domain/              # 비즈니스 도메인
-│   ├── Order.kt
-│   ├── Payment.kt
-│   └── ...
-├── application/         # 애플리케이션 서비스
-│   ├── port/
-│   │   ├── in/         # 인바운드 포트 (UseCase)
-│   │   └── out/        # 아웃바운드 포트 (Repository)
-│   └── service/        # 비즈니스 로직 구현
-└── adapter/            # 어댑터
-    ├── in/
-    │   ├── web/        # REST Controller
-    │   └── grpc/       # gRPC Server
-    └── out/
-        ├── persistence/ # JPA Repository
-        ├── grpc/       # gRPC Client
-        └── kafka/      # Kafka Producer/Consumer
+┌─────────────────────────────────────────────────────────────┐
+│                    Inbound Adapters                         │
+│         (REST Controller, gRPC Server, Kafka Listener)     │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Inbound Ports                            │
+│              (Use Cases, Query Interfaces)                  │
+├─────────────────────────────────────────────────────────────┤
+│                  Application Core                           │
+│              (Business Logic, Domain Model)                 │
+├─────────────────────────────────────────────────────────────┤
+│                   Outbound Ports                           │
+│          (Repository, External Service Interfaces)          │
+└─────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Outbound Adapters                          │
+│      (JPA Repository, gRPC Client, Kafka Producer)         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 1.3 통신 방식
+#### 장점
+- **테스트 용이성**: 비즈니스 로직을 인프라로부터 분리
+- **유연성**: 어댑터 교체로 다른 기술 스택으로 쉽게 전환
+- **명확한 경계**: 각 계층의 책임이 명확히 구분
 
-#### 동기 통신 (gRPC)
-- 실시간 데이터 조회가 필요한 경우
-- 트랜잭션 일관성이 중요한 경우
-- 예: 주문 시 회원 정보 조회, 재고 확인 및 차감
+## 설계 시 고민사항
 
-#### 비동기 통신 (Kafka)
-- 결과를 즉시 알 필요가 없는 경우
-- 서비스 간 결합도를 낮추고 싶은 경우
-- 예: 주문 생성 이벤트, 결제 완료 알림
+### 1. 동기 vs 비동기 통신
 
-## 2. 설계 시 고민사항
+#### 고민 내용
+서비스 간 통신을 동기(gRPC) 또는 비동기(Kafka)로 할 것인가?
 
-### 2.1 동기 vs 비동기 통신
+#### 결정 사항
+- **동기 통신 (gRPC)**: 즉시 응답이 필요한 경우
+  - 주문 시 회원 정보 조회
+  - 주문 시 상품 정보 및 재고 확인
+  - 재고 차감 처리
+  
+- **비동기 통신 (Kafka)**: 느슨한 결합이 필요한 경우
+  - 주문 생성 이벤트 → 결제 서비스
+  - 결제 완료 이벤트 → 주문 상태 업데이트
 
-#### 고민 1: 주문 생성 시 결제 처리
-- **옵션 A**: 동기 방식 (현재 구현)
-  - 주문 서비스가 결제 서비스를 직접 호출
-  - 장점: 즉시 결과 확인 가능, 구현 단순
-  - 단점: 서비스 간 강한 결합, 장애 전파
+#### 근거
+- 재고 차감 같은 중요한 작업은 동기적으로 처리하여 즉시 일관성 보장
+- 결제 처리는 시간이 걸릴 수 있으므로 비동기로 처리하여 사용자 경험 개선
 
-- **옵션 B**: 비동기 방식
-  - Kafka를 통한 이벤트 기반 처리
-  - 장점: 느슨한 결합, 장애 격리
-  - 단점: 최종 일관성, 복잡한 에러 처리
+### 2. 트랜잭션 관리
 
-**결정**: 초기 버전은 동기 방식으로 구현하되, 향후 Saga 패턴으로 전환 예정
+#### 고민 내용
+분산 환경에서 트랜잭션을 어떻게 관리할 것인가?
 
-#### 고민 2: 재고 관리
-- **옵션 A**: 낙관적 락 (Optimistic Lock)
-  - 충돌이 적을 것으로 예상
-  - 성능 우선
+#### 결정 사항
+- **Saga 패턴** 적용 (Choreography 방식)
+- 각 서비스는 로컬 트랜잭션만 관리
+- 실패 시 보상 트랜잭션으로 롤백
 
-- **옵션 B**: 비관적 락 (Pessimistic Lock) - 현재 구현
-  - 재고 정확성 우선
-  - 동시 주문 시 데이터 일관성 보장
-
-**결정**: 재고의 정확성이 중요하므로 비관적 락 채택
-
-### 2.2 트랜잭션 관리
-
-#### 분산 트랜잭션 처리
-- **문제**: 여러 서비스에 걸친 트랜잭션 관리
-- **해결 방안**:
-  1. **2PC (Two-Phase Commit)**: 성능 이슈로 제외
-  2. **Saga Pattern**: 향후 구현 예정
-  3. **현재**: 보상 트랜잭션으로 처리
-
+#### 구현 예시
 ```kotlin
-// 주문 생성 프로세스
-1. 재고 확인 (Product Service)
-2. 재고 차감 (Product Service)
-3. 포인트 차감 (Point Service)
-4. 결제 처리 (Payment Service)
-5. 주문 생성 (Order Service)
+// Order Service
+1. 주문 생성 (상태: PENDING)
+2. 재고 차감 (gRPC 호출)
+3. 주문 이벤트 발행
 
-// 실패 시 롤백
-- 4번 실패: 3번 롤백 (포인트 환불)
-- 3번 실패: 2번 롤백 (재고 복구)
+// Payment Service
+4. 주문 이벤트 수신
+5. 결제 처리
+6. 결제 완료 이벤트 발행
+
+// 실패 시
+7. 재고 복구 (보상 트랜잭션)
+8. 주문 상태 변경 (FAILED)
 ```
 
-### 2.3 결제 방법 설계
+### 3. 결제 방법 설계
 
-#### 결제 방법별 제약사항 처리
+#### 고민 내용
+다양한 결제 수단과 복합결제를 어떻게 효율적으로 처리할 것인가?
+
+#### 결정 사항
+- **Strategy Pattern**: 결제 수단별 처리 로직 분리
+- **Factory Pattern**: 결제 프로세서 생성 관리
+- **Decorator Pattern**: 로깅, 모니터링 등 공통 기능 추가
+- **Chain of Responsibility**: 결제 검증 로직 체인
+
+#### SOLID 원칙 적용
 ```kotlin
-// Strategy Pattern 적용
+// Open/Closed Principle
 interface PaymentProcessor {
-    fun validate(request: PaymentRequest): ValidationResult
-    fun process(request: PaymentRequest): PaymentResult
-    fun rollback(payment: Payment)
+    fun process(...)
+    fun cancel(...)
+    fun validate(...)
 }
 
-// 각 결제 방법별 구현
-class PgPaymentProcessor : PaymentProcessor { ... }
-class PointPaymentProcessor : PaymentProcessor { ... }
-class BnplPaymentProcessor : PaymentProcessor { ... }
-class CouponPaymentProcessor : PaymentProcessor { ... }
+// 새로운 결제 수단 추가 시 기존 코드 수정 없이 확장
+class NewPaymentProcessor : PaymentProcessor { ... }
+
+// Dependency Inversion Principle
+class PaymentService(
+    private val processorFactory: PaymentProcessorFactory
+) { ... }
 ```
 
-#### 복합 결제 처리
+### 4. 데이터 일관성
+
+#### 고민 내용
+분산 시스템에서 데이터 일관성을 어떻게 보장할 것인가?
+
+#### 결정 사항
+- **Eventually Consistent**: 최종 일관성 모델 채택
+- **Idempotency**: 멱등성 보장으로 중복 처리 방지
+- **Event Sourcing**: 이벤트 기반으로 상태 추적
+
+## 구현 상세
+
+### 1. 주문 프로세스 플로우
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant O as Order Service
+    participant M as Member Service
+    participant P as Product Service
+    participant K as Kafka
+    participant PS as Payment Service
+    
+    C->>O: 주문 생성 요청
+    O->>M: 회원 정보 조회 (gRPC)
+    M-->>O: 회원 정보 응답
+    O->>P: 상품 정보 조회 (gRPC)
+    P-->>O: 상품 정보 응답
+    O->>P: 재고 차감 (gRPC)
+    P-->>O: 재고 차감 완료
+    O->>K: 주문 생성 이벤트 발행
+    O-->>C: 주문 생성 응답
+    K->>PS: 주문 이벤트 전달
+    PS->>PS: 결제 처리
+    PS->>K: 결제 완료 이벤트 발행
+```
+
+### 2. 복합결제 처리 로직
+
 ```kotlin
-class CompositePaymentProcessor(
-    private val processors: Map<PaymentMethod, PaymentProcessor>
-) {
-    fun process(details: List<PaymentDetail>): PaymentResult {
-        // 1. 전체 검증
-        validateComposite(details)
+class PaymentService {
+    suspend fun processCompositePayment() {
+        // 1. 서브 결제 수단 먼저 처리 (포인트, 쿠폰)
+        for (subPayment in subPayments) {
+            processor.process(subPayment)
+        }
         
-        // 2. 순차 처리
-        val results = mutableListOf<PaymentResult>()
-        try {
-            details.forEach { detail ->
-                results.add(processors[detail.method]!!.process(detail))
-            }
-        } catch (e: Exception) {
-            // 3. 실패 시 롤백
-            results.forEach { rollback(it) }
-            throw e
+        // 2. 메인 결제 수단 처리 (PG)
+        mainProcessor.process(mainPayment)
+        
+        // 3. 실패 시 전체 롤백
+        if (failed) {
+            rollbackAll()
         }
     }
 }
 ```
 
-## 3. 개선 방향
+### 3. 결제 수단별 제약사항 구현
 
-### 3.1 단기 개선사항 (1-3개월)
-
-#### 1. API Gateway 도입
-- Kong 또는 Spring Cloud Gateway
-- 인증/인가 중앙화
-- Rate Limiting
-- 로드 밸런싱
-
-#### 2. 서비스 메시 도입
-- Istio 또는 Linkerd
-- 서비스 간 통신 암호화
-- 트래픽 관리
-- 서킷 브레이커
-
-#### 3. 모니터링 강화
-- Prometheus + Grafana
-- 분산 추적 (Jaeger)
-- 중앙 로깅 (ELK Stack)
-
-#### 4. 테스트 커버리지 향상
-- 단위 테스트: 80% 이상
-- 통합 테스트: 주요 시나리오
-- 부하 테스트: K6 또는 JMeter
-
-### 3.2 장기 개선사항 (6-12개월)
-
-#### 1. 이벤트 소싱 도입
 ```kotlin
-// 현재: State 기반
-data class Order(
-    val id: Long,
-    val status: OrderStatus,
-    val items: List<OrderItem>
-)
+// 쿠폰 단독 결제 불가
+class StandalonePaymentValidationStrategy {
+    fun validate(method: PaymentMethod): Boolean {
+        return when (method) {
+            PaymentMethod.COUPON -> false
+            else -> true
+        }
+    }
+}
 
-// 개선: Event 기반
-sealed class OrderEvent {
-    data class OrderCreated(val orderId: Long, val items: List<OrderItem>)
-    data class OrderPaid(val orderId: Long, val paymentId: Long)
-    data class OrderCancelled(val orderId: Long, val reason: String)
+// BNPL 복합결제 불가
+class CompositePaymentValidationStrategy {
+    fun validate(methods: List<PaymentMethod>): Boolean {
+        return !methods.contains(PaymentMethod.BNPL)
+    }
 }
 ```
 
-#### 2. CQRS 패턴 적용
-- Command와 Query 분리
-- Read Model 별도 구성
-- 성능 최적화
+## 개선 방향
 
-#### 3. 멀티 테넌시 지원
-- 판매자별 데이터 격리
-- 동적 스키마 관리
-- 테넌트별 설정 관리
+### 단기 개선사항 (1-3개월)
 
-#### 4. 국제화 지원
-- 다중 통화 지원
-- 다국어 지원
-- 지역별 결제 수단
+#### 1. API Gateway 도입
+- **현재**: 클라이언트가 각 서비스 직접 호출
+- **개선**: API Gateway를 통한 단일 진입점 제공
+- **효과**: 
+  - 인증/인가 중앙화
+  - Rate Limiting
+  - 라우팅 로직 단순화
 
-## 4. 제약사항
+#### 2. 서비스 메시 도입
+- **현재**: 서비스 간 직접 통신
+- **개선**: Istio/Linkerd 등 서비스 메시 도입
+- **효과**:
+  - 트래픽 관리
+  - 보안 강화
+  - 관찰 가능성 향상
 
-### 4.1 현재 구현의 제약사항
+#### 3. 캐싱 전략 구현
+- **현재**: 매번 DB 조회
+- **개선**: Redis 캐시 레이어 추가
+- **효과**:
+  - 응답 시간 단축
+  - DB 부하 감소
+  - 자주 조회되는 상품/회원 정보 캐싱
 
-#### 1. 데이터베이스
-- 단일 MySQL 인스턴스 사용
-- 서비스별 스키마 분리 필요
-- Read Replica 미구현
+#### 4. 테스트 커버리지 향상
+- **현재**: 기본적인 단위 테스트
+- **개선**: 
+  - 통합 테스트 추가
+  - Contract Testing (Pact)
+  - E2E 테스트 자동화
+- **목표**: 80% 이상 커버리지
 
-#### 2. 보안
-- 인증/인가 미구현
-- API Key 관리 없음
-- 통신 암호화 미적용
+### 장기 개선사항 (6-12개월)
 
-#### 3. 성능
-- 캐싱 전략 미적용
-- 비동기 처리 제한적
-- 배치 처리 미구현
+#### 1. 이벤트 소싱 완전 적용
+- **현재**: 부분적 이벤트 기반
+- **개선**: 완전한 Event Sourcing + CQRS
+- **효과**:
+  - 완벽한 감사 추적
+  - 시점 복원 가능
+  - 읽기/쓰기 최적화
 
-### 4.2 트래픽 제한
+#### 2. 마이크로프론트엔드
+- **현재**: 모놀리식 프론트엔드
+- **개선**: 서비스별 독립적인 UI
+- **효과**:
+  - 팀별 독립적 개발/배포
+  - 기술 스택 자유도
 
-#### 현재 처리 가능 용량
-- **단일 서버 기준**
-  - TPS: 약 100-200
-  - 동시 사용자: 약 1,000명
-  - 일일 주문: 약 10,000건
+#### 3. 멀티 리전 지원
+- **현재**: 단일 리전
+- **개선**: 글로벌 분산 아키텍처
+- **효과**:
+  - 지연시간 감소
+  - 가용성 향상
+  - 재해 복구
 
-#### 병목 지점
-1. **데이터베이스**: 단일 인스턴스
-2. **동기 통신**: gRPC 호출 지연
-3. **트랜잭션**: 분산 트랜잭션 오버헤드
+#### 4. AI/ML 기반 기능
+- 추천 시스템
+- 사기 탐지
+- 수요 예측
+- 가격 최적화
 
-## 5. 트래픽 증가 대응 방안
+## 제약사항
 
-### 5.1 10배 증가 시 (TPS 1,000-2,000)
+### 현재 시스템의 제약사항
 
-#### 1. 수평 확장
+#### 1. 트래픽 처리 한계
+- **단일 인스턴스 기준**: 
+  - 동시 접속: 1,000명
+  - TPS: 500 (주문 기준)
+  - 응답시간: 평균 200ms
+
+#### 2. 데이터베이스 제약
+- **현재 구성**: 단일 MySQL 인스턴스
+- **제약사항**:
+  - 연결 풀 크기: 100
+  - 최대 동시 쿼리: 150
+  - 스토리지: 100GB
+
+#### 3. 메시지 큐 제약
+- **Kafka 구성**: 단일 브로커
+- **제약사항**:
+  - 파티션당 처리량: 10MB/s
+  - 메시지 보관: 7일
+  - 최대 메시지 크기: 1MB
+
+#### 4. 서비스 간 통신
+- **gRPC 제약**:
+  - 최대 메시지 크기: 4MB
+  - 연결 타임아웃: 30초
+  - 재시도: 3회
+
+### 비즈니스 제약사항
+
+#### 1. 결제 수단 제약
+- 쿠폰: 단독 결제 불가
+- BNPL: 복합결제 불가, 최소 금액 10,000원
+- 포인트: 보유 잔액 내에서만 사용
+- 복합결제: PG가 필수 메인 결제수단
+
+#### 2. 주문 제약
+- 최대 주문 아이템: 50개
+- 단일 상품 최대 수량: 999개
+- 주문 취소: 결제 완료 후 24시간 이내
+
+## 트래픽 증가 대응 방안
+
+### 10배 트래픽 증가 시 (5,000 TPS)
+
+#### 1. 수평적 확장 (Scale Out)
 ```yaml
-# Kubernetes Deployment
-apiVersion: apps/v1
-kind: Deployment
+# Kubernetes HPA 설정
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
 metadata:
-  name: order-service
+  name: order-service-hpa
 spec:
-  replicas: 5  # 5개 인스턴스로 확장
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-service
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
 ```
 
-#### 2. 데이터베이스 최적화
-- Read Replica 추가
-- 커넥션 풀 최적화
-- 인덱스 튜닝
-- 쿼리 최적화
+#### 2. 데이터베이스 확장
+- **Read Replica** 추가 (읽기 부하 분산)
+- **파티셔닝**: 시간/해시 기반 파티셔닝
+- **Connection Pool** 최적화
 
-#### 3. 캐싱 도입
+#### 3. 캐싱 강화
 ```kotlin
-@Cacheable("products")
+@Cacheable(value = "products", key = "#productId")
 fun getProduct(productId: Long): Product {
     return productRepository.findById(productId)
 }
 ```
 
-### 5.2 100배 증가 시 (TPS 10,000-20,000)
+#### 4. 비동기 처리 확대
+- 주문 확인 이메일 발송
+- 통계 데이터 집계
+- 리포트 생성
 
-#### 1. 아키텍처 전환
-- CDN 도입 (CloudFront)
-- API Gateway (Kong)
-- Service Mesh (Istio)
-- NoSQL 도입 (DynamoDB)
-- RDBMS 클러스터 (Aurora)
+### 100배 트래픽 증가 시 (50,000 TPS)
 
-#### 2. 데이터베이스 샤딩
+#### 1. 아키텍처 재설계
+
+##### 샤딩 전략
 ```kotlin
 // 회원 ID 기반 샤딩
-@Component
-class ShardingStrategy {
-    fun getShardKey(memberId: Long): Int {
-        return (memberId % SHARD_COUNT).toInt()
+fun getShardKey(memberId: Long): String {
+    return "shard_${memberId % 10}"
+}
+```
+
+##### CQRS 패턴
+- **Command**: 주문 생성, 결제 처리
+- **Query**: 주문 조회, 통계 조회
+- 별도의 읽기 전용 DB 구성
+
+#### 2. 인프라 고도화
+
+##### 멀티 리전 배포
+```
+Region A (Seoul)          Region B (Tokyo)
+├── Order Service        ├── Order Service
+├── Payment Service      ├── Payment Service
+└── DB Master           └── DB Replica
+
+        Cross-Region Replication
+```
+
+##### CDN 활용
+- 정적 콘텐츠 캐싱
+- API 응답 캐싱 (Edge Computing)
+
+#### 3. 성능 최적화
+
+##### 데이터베이스 최적화
+```sql
+-- 인덱스 최적화
+CREATE INDEX idx_orders_member_date 
+ON orders(member_id, created_at);
+
+-- 파티셔닝
+ALTER TABLE orders 
+PARTITION BY RANGE (YEAR(created_at)) (
+    PARTITION p2024 VALUES LESS THAN (2025),
+    PARTITION p2025 VALUES LESS THAN (2026)
+);
+```
+
+##### 코드 레벨 최적화
+```kotlin
+// 배치 처리
+suspend fun processOrdersBatch(orders: List<Order>) {
+    coroutineScope {
+        orders.chunked(100).map { batch ->
+            async { processBatch(batch) }
+        }.awaitAll()
     }
 }
 ```
 
-#### 3. 이벤트 기반 아키텍처 전환
-- Event Sourcing
-- CQRS 패턴
-- Saga Pattern
+#### 4. 모니터링 및 관찰성
 
-## 6. 기타 설명
+##### 분산 추적
+- Jaeger/Zipkin 도입
+- 전체 요청 플로우 추적
+- 병목 지점 식별
 
-### 6.1 기술 선택 이유
+##### 메트릭 수집
+```kotlin
+@Component
+class OrderMetrics(
+    private val meterRegistry: MeterRegistry
+) {
+    fun recordOrder(order: Order) {
+        meterRegistry.counter("orders.created",
+            "payment_method", order.paymentMethod.name,
+            "status", order.status.name
+        ).increment()
+    }
+}
+```
 
-#### Kotlin
-- Java 대비 간결한 문법
-- Null Safety
-- Coroutine 지원
-- Spring Boot와의 우수한 호환성
+## 기타 설명
 
-#### gRPC
-- 높은 성능 (HTTP/2, Protocol Buffers)
-- 타입 안정성
-- 다양한 언어 지원
-- 스트리밍 지원
+### 1. 보안 고려사항
 
-#### Hexagonal Architecture
-- 비즈니스 로직 보호
-- 테스트 용이성
-- 기술 독립적
-- 확장성
-
-### 6.2 개발 철학
-
-#### 1. Domain-Driven Design
-- 도메인 중심 설계
-- Ubiquitous Language
-- Bounded Context 명확화
-
-#### 2. Clean Code
-- 의미 있는 이름
-- 작은 함수
-- 단일 책임 원칙
-
-#### 3. Test-Driven Development
-- Red-Green-Refactor
-- 테스트 커버리지 80% 이상
-- 모든 엣지 케이스 테스트
-
-### 6.3 보안 고려사항
-
-#### 1. API 보안
-- JWT 토큰 기반 인증 (향후 구현)
-- Role 기반 접근 제어
+#### API 보안
+- JWT 기반 인증 (추후 구현)
 - Rate Limiting
+- API Key 관리
+- HTTPS 적용
 
-#### 2. 데이터 암호화
-- 통신: TLS 1.3
-- 저장: AES-256
-- 개인정보: 별도 암호화
+#### 데이터 보안
+- 민감 정보 암호화 (카드 번호, 개인정보)
+- PCI DSS 준수 (결제 정보)
+- GDPR 준수 (개인정보 보호)
 
-#### 3. PCI DSS 준수
-- 카드 정보 미저장
-- 토큰화 사용
-- 정기 보안 감사
+### 2. 운영 고려사항
 
-### 6.4 팀 구조 제안
+#### 배포 전략
+- Blue/Green 배포
+- Canary 배포
+- Feature Toggle
 
-#### 1. 서비스별 팀
-- Order Team: 주문 도메인
-- Payment Team: 결제 도메인
-- Member Team: 회원 도메인
-- Platform Team: 인프라/공통
+#### 모니터링
+- 애플리케이션 메트릭 (Prometheus + Grafana)
+- 로그 집계 (ELK Stack)
+- 알림 설정 (PagerDuty)
 
-#### 2. 역할별 구성
-- Backend Developer: 3-4명
-- DevOps Engineer: 1-2명
-- QA Engineer: 1-2명
-- Product Owner: 1명
+### 3. 개발 문화
 
-## 7. 결론
+#### 코드 품질
+- 코드 리뷰 필수
+- 정적 분석 도구 (SonarQube)
+- 코딩 컨벤션 준수
 
-본 프로젝트는 캐시노트 마켓의 복잡한 결제 요구사항을 충족하는 확장 가능한 주문 시스템을 구현했습니다. 마이크로서비스와 헥사고날 아키텍처를 통해 비즈니스 로직을 보호하고, 향후 요구사항 변경에 유연하게 대응할 수 있는 구조를 만들었습니다.
+#### 문서화
+- API 문서 자동화 (Swagger)
+- 아키텍처 결정 기록 (ADR)
+- 운영 매뉴얼 유지
 
-현재는 MVP(Minimum Viable Product) 수준이지만, 명확한 개선 방향과 확장 계획을 통해 대규모 트래픽을 처리할 수 있는 시스템으로 발전시킬 수 있습니다.
+### 4. 비용 최적화
+
+#### 리소스 최적화
+- 사용하지 않는 리소스 정리
+- 예약 인스턴스 활용
+- Spot Instance 활용 (배치 작업)
+
+#### 아키텍처 최적화
+- 서버리스 아키텍처 부분 도입
+- 이벤트 기반 자동 확장
+- 데이터 수명 주기 관리
+
+## 결론
+
+캐시노트 마켓 주문 서비스는 확장 가능하고 유지보수가 용이한 마이크로서비스 아키텍처로 구현되었습니다. 
+SOLID 원칙과 다양한 디자인 패턴을 적용하여 변경에 유연하게 대응할 수 있는 구조를 갖추었으며, 
+향후 트래픽 증가와 비즈니스 요구사항 변화에 대응할 수 있는 확장 전략을 수립했습니다.
+
+핵심 성공 요인:
+1. **명확한 서비스 경계**: 각 서비스의 책임이 명확히 구분
+2. **느슨한 결합**: 이벤트 기반 통신으로 서비스 간 의존성 최소화
+3. **확장 가능한 설계**: 수평적 확장이 용이한 구조
+4. **운영 친화적**: 모니터링, 로깅, 추적이 용이
+
+향후 지속적인 개선과 최적화를 통해 더욱 안정적이고 효율적인 시스템으로 발전시켜 나갈 예정입니다.
+
+---
+
+작성일: 2024년 1월 20일  
+작성자: 개발팀
