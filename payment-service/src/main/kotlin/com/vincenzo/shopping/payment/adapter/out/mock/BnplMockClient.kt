@@ -19,7 +19,7 @@ class BnplMockClient {
         }
         
         // 신용 점수에 따른 한도 계산
-        val (isApproved, creditLimit, reason) = when {
+        val (available, creditLimit, reason) = when {
             creditScore >= 700 -> Triple(true, 5000000L, "우수 신용")
             creditScore >= 600 -> Triple(true, 3000000L, "양호 신용")
             creditScore >= 500 -> Triple(true, 1000000L, "보통 신용")
@@ -27,39 +27,39 @@ class BnplMockClient {
         }
         
         // 기존 사용액 계산 (랜덤)
-        val usedAmount = if (isApproved) Random.nextLong(0, creditLimit / 2) else 0L
+        val usedAmount = if (available) Random.nextLong(0, creditLimit / 2) else 0L
         
         return CreditCheckResult(
-            isApproved = isApproved,
+            available = available,
             creditScore = creditScore,
             creditLimit = creditLimit,
             usedAmount = usedAmount,
             availableAmount = creditLimit - usedAmount,
-            reason = reason
+            message = reason
         )
     }
     
-    fun processPayment(
+    fun applyBnpl(
         orderId: Long,
         memberId: Long,
         amount: Long,
-        installmentMonths: Int
-    ): BnplResponse {
-        println("[BNPL Mock] 후불결제 요청 - 주문: $orderId, 회원: $memberId, 금액: $amount, 할부: ${installmentMonths}개월")
+        installmentMonths: Int = 3
+    ): BnplResult {
+        println("[BNPL Mock] 후불결제 요청 - 주문: $orderId, 회원: $memberId, 금액: $amount")
         
         // 신용도 재확인
         val creditCheck = checkCredit(memberId)
         
-        if (!creditCheck.isApproved) {
-            return BnplResponse(
-                success = false,
-                message = "신용도 부족: ${creditCheck.reason}"
+        if (!creditCheck.available) {
+            return BnplResult(
+                approved = false,
+                message = "신용도 부족: ${creditCheck.message}"
             )
         }
         
         if (amount > creditCheck.availableAmount) {
-            return BnplResponse(
-                success = false,
+            return BnplResult(
+                approved = false,
                 message = "한도 초과 (가능: ${creditCheck.availableAmount}, 요청: $amount)"
             )
         }
@@ -69,56 +69,43 @@ class BnplMockClient {
         
         return if (isSuccess) {
             val dueDate = LocalDate.now().plusMonths(1)
-            BnplResponse(
-                success = true,
-                transactionId = "BNPL-${System.currentTimeMillis()}-$orderId",
+            BnplResult(
+                approved = true,
+                bnplId = "BNPL-${System.currentTimeMillis()}-$orderId",
                 message = "후불결제 승인",
-                approvalNumber = generateApprovalNumber(),
                 dueDate = dueDate.toString(),
-                monthlyPayment = amount / installmentMonths
+                creditLimit = creditCheck.creditLimit
             )
         } else {
-            BnplResponse(
-                success = false,
+            BnplResult(
+                approved = false,
                 message = "후불결제 심사 거절"
             )
         }
     }
     
-    fun cancelPayment(
-        transactionId: String,
+    fun cancelBnpl(
+        bnplId: String,
         reason: String
-    ): BnplResponse {
-        println("[BNPL Mock] 후불결제 취소 - 거래ID: $transactionId, 사유: $reason")
-        
-        // 취소는 항상 성공
-        return BnplResponse(
-            success = true,
-            transactionId = "CANCEL-$transactionId",
-            message = "후불결제 취소 완료",
-            approvalNumber = generateApprovalNumber()
-        )
-    }
-    
-    private fun generateApprovalNumber(): String {
-        return "BNPL${(100000..999999).random()}"
+    ): Boolean {
+        println("[BNPL Mock] 후불결제 취소 - ID: $bnplId, 사유: $reason")
+        return true
     }
 }
 
 data class CreditCheckResult(
-    val isApproved: Boolean,
+    val available: Boolean,
     val creditScore: Int,
     val creditLimit: Long,
     val usedAmount: Long,
     val availableAmount: Long,
-    val reason: String
+    val message: String
 )
 
-data class BnplResponse(
-    val success: Boolean,
-    val transactionId: String? = null,
+data class BnplResult(
+    val approved: Boolean,
+    val bnplId: String? = null,
     val message: String,
-    val approvalNumber: String? = null,
     val dueDate: String? = null,
-    val monthlyPayment: Long? = null
+    val creditLimit: Long? = null
 )
