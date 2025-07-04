@@ -16,8 +16,15 @@ class PaymentEntity(
     @Column(name = "order_id", nullable = false, unique = true)
     val orderId: Long,
     
+    @Column(name = "member_id", nullable = false)
+    val memberId: Long,
+    
     @Column(name = "total_amount", nullable = false)
     val totalAmount: Long,
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", nullable = false)
+    val paymentMethod: PaymentMethod,
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -42,7 +49,7 @@ class PaymentDetailEntity(
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_id")
-    var payment: PaymentEntity? = null,
+    val payment: PaymentEntity? = null,
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
