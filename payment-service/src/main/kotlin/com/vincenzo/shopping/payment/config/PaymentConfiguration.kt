@@ -2,7 +2,10 @@ package com.vincenzo.shopping.payment.config
 
 import com.vincenzo.shopping.payment.application.port.out.PaymentProcessor
 import com.vincenzo.shopping.payment.application.processor.PaymentProcessorFactory
-import com.vincenzo.shopping.payment.domain.*
+import com.vincenzo.shopping.payment.domain.PaymentValidationChain
+import com.vincenzo.shopping.payment.domain.AmountValidationStrategy
+import com.vincenzo.shopping.payment.domain.StandalonePaymentValidationStrategy
+import com.vincenzo.shopping.payment.domain.CompositePaymentValidationStrategy
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
