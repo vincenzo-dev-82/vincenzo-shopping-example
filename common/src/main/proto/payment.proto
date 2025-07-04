@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.vincenzo.shopping.grpc.payment";
+option java_outer_classname = "PaymentProto";
+
+package payment;
+
+service PaymentService {
+  rpc ProcessPayment (ProcessPaymentRequest) returns (PaymentResponse);
+  rpc GetPaymentByOrderId (GetPaymentByOrderIdRequest) returns (PaymentResponse);
+}
+
+message ProcessPaymentRequest {
+  int64 order_id = 1;
+  int64 member_id = 2;
+  int64 total_amount = 3;
+  repeated PaymentDetailRequest payment_details = 4;
+}
+
+message PaymentDetailRequest {
+  string method = 1;
+  int64 amount = 2;
+  map<string, string> metadata = 3;
+}
+
+message GetPaymentByOrderIdRequest {
+  int64 order_id = 1;
+}
+
+message PaymentResponse {
+  int64 id = 1;
+  int64 order_id = 2;
+  int64 total_amount = 3;
+  string status = 4;
+  repeated PaymentDetailResponse payment_details = 5;
+  string created_at = 6;
+  string completed_at = 7;
+}
+
+message PaymentDetailResponse {
+  int64 id = 1;
+  string method = 2;
+  int64 amount = 3;
+  string transaction_id = 4;
+  string status = 5;
+  map<string, string> metadata = 6;
+}
