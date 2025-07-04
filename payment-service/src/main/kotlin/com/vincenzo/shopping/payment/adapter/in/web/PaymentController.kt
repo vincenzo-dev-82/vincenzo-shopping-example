@@ -8,7 +8,12 @@ import com.vincenzo.shopping.payment.domain.PaymentMethod
 import com.vincenzo.shopping.payment.domain.PaymentStatus
 import kotlinx.coroutines.runBlocking
 import org.springframework.http.HttpStatus
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api/payments")
@@ -88,14 +93,14 @@ class PaymentController(
         
         try {
             val payment = processPaymentUseCase.processPayment(command)
-            mapOf(
+            mapOf<String, Any>(
                 "success" to (payment.status == PaymentStatus.COMPLETED),
-                "paymentId" to payment.id,
+                "paymentId" to (payment.id ?: 0L),
                 "status" to payment.status.toString(),
                 "details" to payment.paymentDetails
             )
         } catch (e: Exception) {
-            mapOf(
+            mapOf<String, Any>(
                 "success" to false,
                 "error" to (e.message ?: "Unknown error")
             )
