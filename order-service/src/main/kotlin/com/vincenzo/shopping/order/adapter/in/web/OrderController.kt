@@ -95,11 +95,11 @@ class OrderController(
             }
             
             // 포인트가 포함된 경우 포인트 금액이 전체인지 확인
-            val pointDetail = request.compositePayment.details.find { it.method == "POINT" }
+            val pointDetail = request.compositePayment.details.find { it.method == "CASHNOTE_POINT" }
             if (pointDetail != null) {
                 val totalAmount = request.compositePayment.details.sumOf { it.amount }
                 if (pointDetail.amount == totalAmount) {
-                    return PaymentMethod.POINT
+                    return PaymentMethod.CASHNOTE_POINT
                 }
             }
             
@@ -142,7 +142,7 @@ class OrderController(
 data class CreateOrderApiRequest(
     val memberId: Long,
     val items: List<OrderItemApiRequest>,
-    val paymentMethod: String? = null,  // 단일 결제: "PG_KPN", "POINT", "BNPL"
+    val paymentMethod: String? = null,  // 단일 결제: "PG_KPN", "CASHNOTE_POINT", "BNPL"
     val compositePayment: CompositePaymentRequest? = null  // 복합 결제
 )
 
@@ -156,7 +156,7 @@ data class CompositePaymentRequest(
 )
 
 data class PaymentDetailRequest(
-    val method: String,  // "PG_KPN", "POINT", "COUPON"
+    val method: String,  // "PG_KPN", "CASHNOTE_POINT", "COUPON"
     val amount: Long,
     val metadata: Map<String, String>? = null  // 쿠폰 코드 등
 )
