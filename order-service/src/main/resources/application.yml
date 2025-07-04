@@ -23,11 +23,17 @@ spring:
 
 grpc:
   server:
-    port: 9094  # 변경: 9092 -> 9094 (Kafka와 중복 방지)
+    port: 9094
   client:
     member-service:
       address: localhost:9090
       negotiation-type: plaintext
     product-service:
       address: localhost:9091
+      negotiation-type: plaintext
+    point-service:
+      address: localhost:9095
+      negotiation-type: plaintext
+    payment-service:
+      address: localhost:9093
       negotiation-type: plaintext
