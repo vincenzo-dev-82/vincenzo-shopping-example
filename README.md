@@ -92,6 +92,23 @@ curl http://localhost:8083/api/orders/test-grpc/member/1
 curl http://localhost:8083/api/orders/test-grpc/product/1
 ```
 
+#### 주문 생성 (gRPC 통합)
+```bash
+# 주문 생성 - 회원 정보, 상품 정보를 gRPC로 조회하고 재고 차감
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": 1,
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 2
+      }
+    ],
+    "paymentMethod": "PG_KPN"
+  }'
+```
+
 ## 서비스 포트
 
 ### HTTP 포트
@@ -123,11 +140,13 @@ curl http://localhost:8083/api/orders/test-grpc/product/1
 
 ## 데이터베이스
 
-각 서비스는 독립적인 데이터베이스를 사용합니다:
-- member_db: 회원 정보
-- product_db: 상품 정보
-- order_db: 주문 정보
-- payment_db: 결제 정보
+모든 서비스는 단일 데이터베이스를 공유합니다:
+- **Database**: shop
+- **Tables**: 
+  - members (회원 정보)
+  - products (상품 정보) 
+  - orders (주문 정보)
+  - payments (결제 정보)
 
 ## gRPC 설정
 
@@ -155,3 +174,20 @@ Order Service와 Payment Service는 gRPC 클라이언트를 통해 다른 서비
 
 ### Consumer  
 - Payment Service: 주문 이벤트 구독하여 결제 처리
+
+## DB 접속 정보
+
+```bash
+# Docker exec로 접속
+docker exec -it shopping-mysql mysql -uroot -proot shop
+
+# 로컬 MySQL 클라이언트로 접속
+mysql -h localhost -P 3306 -u root -proot shop
+```
+
+### DBeaver/MySQL Workbench 설정
+- Host: localhost
+- Port: 3306
+- Database: shop
+- Username: root
+- Password: root
