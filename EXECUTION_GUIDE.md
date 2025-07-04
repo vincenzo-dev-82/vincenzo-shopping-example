@@ -124,14 +124,21 @@ docker-compose -f docker-compose-all.yml logs -f
 
 ## 서비스 상태 확인
 
-### 1. Health Check
+### 1. Health Check (Spring Boot Actuator)
 ```bash
 # 각 서비스 상태 확인
-curl http://localhost:8081/api/members/hello
-curl http://localhost:8082/api/products/hello
-curl http://localhost:8083/api/orders/hello
-curl http://localhost:8084/api/payments/hello
-curl http://localhost:8085/api/points/hello
+curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
+curl http://localhost:8083/actuator/health
+curl http://localhost:8084/actuator/health
+curl http://localhost:8085/actuator/health
+
+# 상세 정보 확인
+curl http://localhost:8081/actuator/health | jq .
+
+# 특정 컴포넌트 상태 확인
+curl http://localhost:8081/actuator/health/db
+curl http://localhost:8081/actuator/health/ping
 ```
 
 ### 2. 테스트 데이터 확인
@@ -144,6 +151,18 @@ curl http://localhost:8082/api/products
 
 # 포인트 잔액 조회 (회원 ID: 1)
 curl http://localhost:8085/api/points/balance/1
+```
+
+### 3. 메트릭스 확인
+```bash
+# JVM 메트릭스
+curl http://localhost:8081/actuator/metrics/jvm.memory.used
+
+# HTTP 요청 메트릭스
+curl http://localhost:8081/actuator/metrics/http.server.requests
+
+# 사용 가능한 모든 메트릭스 목록
+curl http://localhost:8081/actuator/metrics
 ```
 
 ## 트러블슈팅
@@ -219,6 +238,7 @@ docker-compose down -v
 2. **메모리**: 전체 서비스 실행 시 최소 8GB RAM 권장
 3. **포트**: 8081-8085, 9090-9095 포트가 사용 가능해야 합니다.
 4. **시작 순서**: 서비스 간 의존성이 있으므로 순서를 지켜야 합니다.
+5. **Actuator 보안**: 운영 환경에서는 Actuator 엔드포인트에 보안 설정을 추가해야 합니다.
 
 ## 도움말
 
@@ -227,3 +247,4 @@ docker-compose down -v
 2. 각 서비스의 로그에 에러가 없는지
 3. 필요한 포트가 사용 가능한지
 4. Java 버전이 17 이상인지
+5. Actuator health 엔드포인트 응답 확인
