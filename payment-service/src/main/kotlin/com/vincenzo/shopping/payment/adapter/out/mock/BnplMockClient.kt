@@ -45,7 +45,7 @@ class BnplMockClient {
         amount: Long,
         installmentMonths: Int
     ): BnplResponse {
-        println("[BNPL Mock] 후불결제 요청 - 주문: $orderId, 회원: $memberId, 금액: $amount, 할부: ${아스파탄매이드일토}개월")
+        println("[BNPL Mock] 후불결제 요청 - 주문: $orderId, 회원: $memberId, 금액: $amount, 할부: ${installmentMonths}개월")
         
         // 신용도 재확인
         val creditCheck = checkCredit(memberId)
