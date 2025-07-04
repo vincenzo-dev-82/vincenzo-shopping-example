@@ -27,7 +27,7 @@ class PaymentController(
                 PaymentDetailCommand(
                     method = detail.method,
                     amount = detail.amount,
-                    metadata = detail.metadata
+                    metadata = detail.metadata.mapValues { it.value.toString() }
                 )
             }
         )
