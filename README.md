@@ -15,6 +15,7 @@
 
 - Kotlin
 - Spring Boot 3.2.2
+- Spring Boot Actuator (Health Check)
 - JDK 17
 - MySQL 8.0
 - Apache Kafka
@@ -41,15 +42,21 @@ docker-compose up -d
 docker-compose -f docker-compose-all.yml up -d
 ```
 
-### 3. 테스트
+### 3. 헬스 체크
 ```bash
-# 헬스 체크
-curl http://localhost:8081/api/members/hello
-curl http://localhost:8082/api/products/hello
-curl http://localhost:8083/api/orders/hello
-curl http://localhost:8084/api/payments/hello
-curl http://localhost:8085/api/points/hello
+# Spring Boot Actuator를 통한 상태 확인
+curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
+curl http://localhost:8083/actuator/health
+curl http://localhost:8084/actuator/health
+curl http://localhost:8085/actuator/health
 
+# 상세 헬스 정보 (JSON)
+curl http://localhost:8081/actuator/health | jq .
+```
+
+### 4. 주문 테스트
+```bash
 # 주문 생성 (PG 결제)
 curl -X POST http://localhost:8083/api/orders \
   -H "Content-Type: application/json" \
@@ -73,6 +80,16 @@ curl -X POST http://localhost:8083/api/orders \
 - **BNPL**: 단독 결제만 가능
 - **포인트**: 잔액이 충분한 경우 단독 결제 가능
 - **쿠폰**: 단독 결제 불가, 반드시 다른 결제수단과 함께 사용
+
+## 모니터링
+
+### Spring Boot Actuator 엔드포인트
+- **Health Check**: `/actuator/health`
+- **Metrics**: `/actuator/metrics`
+- **Info**: `/actuator/info`
+- **Database Health**: `/actuator/health/db`
+- **Liveness Probe**: `/actuator/health/liveness`
+- **Readiness Probe**: `/actuator/health/readiness`
 
 ## 문서
 
