@@ -40,7 +40,8 @@ data class MemberResponse(
     val id: Long?,
     val email: String,
     val name: String,
-    val phoneNumber: String
+    val phoneNumber: String,
+    val point: Int
 ) {
     companion object {
         fun from(member: Member): MemberResponse {
@@ -48,7 +49,8 @@ data class MemberResponse(
                 id = member.id,
                 email = member.email,
                 name = member.name,
-                phoneNumber = member.phoneNumber
+                phoneNumber = member.phoneNumber,
+                point = member.point
             )
         }
     }
