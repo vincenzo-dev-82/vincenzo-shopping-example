@@ -4,20 +4,15 @@ import com.vincenzo.shopping.payment.domain.PaymentDetail
 import com.vincenzo.shopping.payment.domain.PaymentMethod
 
 /**
- * Outbound Port: 결제 처리를 위한 인터페이스
+ * 결제 처리기 인터페이스
  * 
- * 헥사고날 아키텍처에서 애플리케이션이 외부 결제 시스템과 통신하기 위한 포트
- * 각 결제 방법별로 Adapter에서 구현체를 제공
+ * SOLID 원칙:
+ * - Interface Segregation Principle: 필요한 메서드만 포함
+ * - Dependency Inversion Principle: 추상화에 의존
  */
 interface PaymentProcessor {
-    /**
-     * 지원하는 결제 방법
-     */
     fun getSupportedMethod(): PaymentMethod
     
-    /**
-     * 결제 처리
-     */
     suspend fun process(
         orderId: Long,
         memberId: Long,
@@ -25,17 +20,11 @@ interface PaymentProcessor {
         metadata: Map<String, Any> = emptyMap()
     ): PaymentResult
     
-    /**
-     * 결제 취소
-     */
     suspend fun cancel(
         paymentDetail: PaymentDetail,
         reason: String
     ): PaymentResult
     
-    /**
-     * 결제 검증
-     */
     suspend fun validate(
         memberId: Long,
         amount: Long,
@@ -47,7 +36,7 @@ data class PaymentResult(
     val success: Boolean,
     val transactionId: String? = null,
     val message: String? = null,
-    val processedAmount: Long = 0,
+    val processedAmount: Long? = null,
     val metadata: Map<String, Any> = emptyMap()
 )
 
