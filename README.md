@@ -1,6 +1,6 @@
 # Vincenzo Shopping Example
 
-캐시노트 마켓 주문 서비스 구현 프로젝트
+마켓 주문 서비스 구현 프로젝트
 
 ## 프로젝트 구조
 
@@ -43,11 +43,18 @@ gradle wrapper --gradle-version=8.5
 ./gradlew clean build
 
 # 또는 각 서비스별 빌드
+<<<<<<< Updated upstream
 ./gradlew :member-service:build
 ./gradlew :product-service:build
 ./gradlew :order-service:build
 ./gradlew :payment-service:build
 ./gradlew :point-service:build
+=======
+./gradlew :member-service:clean :member-service:build
+./gradlew :product-service:clean :product-service:build
+./gradlew :order-service:clean :order-service:build
+./gradlew :payment-service:clean :payment-service:build
+>>>>>>> Stashed changes
 ```
 
 ### 3. 서비스 실행

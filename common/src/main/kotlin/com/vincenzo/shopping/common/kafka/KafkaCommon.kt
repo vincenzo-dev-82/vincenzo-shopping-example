@@ -1,3 +1,4 @@
+
 package com.vincenzo.shopping.common.kafka
 
 data class KafkaMessage<T>(

@@ -14,25 +14,25 @@ class DataInitializer {
         // 샘플 상품 데이터 생성
         val products = listOf(
             CreateProductCommand(
-                name = "캐시노트 포인트 충전권 1000원",
+                name = "포인트 충전권 1000원",
                 price = 1000,
                 stock = 100,
                 sellerId = "cashnote"
             ),
             CreateProductCommand(
-                name = "캐시노트 포인트 충전권 5000원",
+                name = "포인트 충전권 5000원",
                 price = 5000,
                 stock = 50,
                 sellerId = "cashnote"
             ),
             CreateProductCommand(
-                name = "캐시노트 포인트 충전권 10000원",
+                name = "포인트 충전권 10000원",
                 price = 10000,
                 stock = 30,
                 sellerId = "cashnote"
             ),
             CreateProductCommand(
-                name = "캐시노트 포인트 충전권 50000원",
+                name = "포인트 충전권 50000원",
                 price = 50000,
                 stock = 10,
                 sellerId = "cashnote"

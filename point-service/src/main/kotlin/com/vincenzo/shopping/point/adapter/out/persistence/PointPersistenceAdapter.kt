@@ -12,9 +12,13 @@ class PointPersistenceAdapter(
     private val pointBalanceJpaRepository: PointBalanceJpaRepository,
     private val pointTransactionJpaRepository: PointTransactionJpaRepository
 ) : PointBalanceRepository, PointTransactionRepository {
-    
+
     override fun findByMemberId(memberId: Long): PointBalance? {
         return pointBalanceJpaRepository.findByMemberId(memberId)?.toDomain()
+    }
+
+    fun findPointBalanceByMemberId(memberId: Long): PointBalance? {
+        return findByMemberId(memberId)
     }
     
     override fun save(pointBalance: PointBalance): PointBalance {
@@ -45,6 +49,10 @@ class PointPersistenceAdapter(
     override fun findByMemberId(memberId: Long): List<PointTransaction> {
         return pointTransactionJpaRepository.findByMemberIdOrderByCreatedAtDesc(memberId)
             .map { it.toDomain() }
+    }
+
+    fun findPointTransactionsByMemberId(memberId: Long): List<PointTransaction> {
+        return findByMemberId(memberId)
     }
 }
 
