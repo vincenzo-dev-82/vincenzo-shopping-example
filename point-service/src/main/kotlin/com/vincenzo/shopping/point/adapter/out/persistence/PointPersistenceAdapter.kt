@@ -8,17 +8,12 @@ import com.vincenzo.shopping.point.domain.TransactionType
 import org.springframework.stereotype.Repository
 
 @Repository
-class PointPersistenceAdapter(
-    private val pointBalanceJpaRepository: PointBalanceJpaRepository,
-    private val pointTransactionJpaRepository: PointTransactionJpaRepository
-) : PointBalanceRepository, PointTransactionRepository {
-
+class PointBalancePersistenceAdapter(
+    private val pointBalanceJpaRepository: PointBalanceJpaRepository
+) : PointBalanceRepository {
+    
     override fun findByMemberId(memberId: Long): PointBalance? {
         return pointBalanceJpaRepository.findByMemberId(memberId)?.toDomain()
-    }
-
-    fun findPointBalanceByMemberId(memberId: Long): PointBalance? {
-        return findByMemberId(memberId)
     }
     
     override fun save(pointBalance: PointBalance): PointBalance {
@@ -31,6 +26,12 @@ class PointPersistenceAdapter(
         val saved = pointBalanceJpaRepository.save(entity)
         return saved.toDomain()
     }
+}
+
+@Repository
+class PointTransactionPersistenceAdapter(
+    private val pointTransactionJpaRepository: PointTransactionJpaRepository
+) : PointTransactionRepository {
     
     override fun save(transaction: PointTransaction): PointTransaction {
         val entity = PointTransactionEntity(
@@ -49,10 +50,6 @@ class PointPersistenceAdapter(
     override fun findByMemberId(memberId: Long): List<PointTransaction> {
         return pointTransactionJpaRepository.findByMemberIdOrderByCreatedAtDesc(memberId)
             .map { it.toDomain() }
-    }
-
-    fun findPointTransactionsByMemberId(memberId: Long): List<PointTransaction> {
-        return findByMemberId(memberId)
     }
 }
 
