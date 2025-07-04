@@ -8,16 +8,10 @@ package member;
 
 service MemberService {
   rpc GetMember (GetMemberRequest) returns (MemberResponse);
-  rpc UpdateMemberPoint (UpdateMemberPointRequest) returns (MemberResponse);
 }
 
 message GetMemberRequest {
   int64 member_id = 1;
-}
-
-message UpdateMemberPointRequest {
-  int64 member_id = 1;
-  int32 point_change = 2;
 }
 
 message MemberResponse {
@@ -25,5 +19,4 @@ message MemberResponse {
   string email = 2;
   string name = 3;
   string phone_number = 4;
-  int32 point = 5;
 }
