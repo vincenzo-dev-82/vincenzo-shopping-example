@@ -14,8 +14,7 @@ class MemberPersistenceAdapter(
             id = member.id,
             email = member.email,
             name = member.name,
-            phoneNumber = member.phoneNumber,
-            point = member.point
+            phoneNumber = member.phoneNumber
         )
         val savedEntity = memberJpaRepository.save(entity)
         return savedEntity.toDomain()
@@ -37,7 +36,6 @@ private fun MemberEntity.toDomain(): Member {
         id = this.id,
         email = this.email,
         name = this.name,
-        phoneNumber = this.phoneNumber,
-        point = this.point
+        phoneNumber = this.phoneNumber
     )
 }

@@ -4,6 +4,5 @@ data class Member(
     val id: Long? = null,
     val email: String,
     val name: String,
-    val phoneNumber: String,
-    val point: Int = 0
+    val phoneNumber: String
 )
