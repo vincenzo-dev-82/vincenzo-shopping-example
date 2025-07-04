@@ -42,6 +42,8 @@ subprojects {
         
         testImplementation("org.springframework.boot:spring-boot-starter-test")
         testImplementation("org.junit.jupiter:junit-jupiter")
+        testImplementation("io.mockk:mockk:1.13.9")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
         testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     }
 

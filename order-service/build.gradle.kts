@@ -24,4 +24,5 @@ dependencies {
     implementation("net.devh:grpc-client-spring-boot-starter:3.0.0.RELEASE")
     
     testImplementation("com.h2database:h2")
+    testImplementation("org.springframework.kafka:spring-kafka-test")
 }
