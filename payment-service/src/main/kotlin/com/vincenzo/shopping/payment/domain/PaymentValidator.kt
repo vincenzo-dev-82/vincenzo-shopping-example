@@ -1,61 +1,60 @@
 package com.vincenzo.shopping.payment.domain
 
 /**
- * 결제 검증 유틸리티
+ * 결제 유효성 검사기
+ * Strategy Pattern과 Chain of Responsibility Pattern을 활용
  */
-object PaymentValidator {
+class PaymentValidator(
+    private val validationStrategies: List<PaymentValidationStrategy>
+) {
     
-    fun validatePaymentDetails(
-        paymentDetails: List<PaymentDetail>,
-        totalAmount: Long
-    ): PaymentRules.ValidationResult {
-        // 총 금액 검증
-        val detailsSum = paymentDetails.sumOf { it.amount }
-        if (detailsSum != totalAmount) {
-            return PaymentRules.ValidationResult(
-                isValid = false,
-                message = "결제 상세 금액의 합($detailsSum)이 총 금액($totalAmount)과 일치하지 않습니다."
-            )
-        }
+    fun validate(
+        paymentMethod: PaymentMethod,
+        amount: Long,
+        memberId: Long,
+        metadata: Map<String, Any> = emptyMap()
+    ): PaymentValidationResult {
+        val request = PaymentValidationRequest(
+            paymentMethod = paymentMethod,
+            amount = amount,
+            memberId = memberId,
+            metadata = metadata
+        )
         
-        // 쿠폰 단독 결제 검증
-        if (paymentDetails.size == 1 && paymentDetails.first().method == PaymentMethod.COUPON) {
-            return PaymentRules.ValidationResult(
-                isValid = false,
-                message = "쿠폰은 단독 결제가 불가능합니다."
-            )
-        }
-        
-        // BNPL 복합 결제 검증
-        if (paymentDetails.any { it.method == PaymentMethod.BNPL } && paymentDetails.size > 1) {
-            return PaymentRules.ValidationResult(
-                isValid = false,
-                message = "BNPL은 단독 결제만 가능합니다."
-            )
-        }
-        
-        // 복합 결제 검증
-        if (paymentDetails.size > 1) {
-            val hasMainMethod = paymentDetails.any { it.method == PaymentMethod.PG_KPN }
-            if (!hasMainMethod) {
-                return PaymentRules.ValidationResult(
-                    isValid = false,
-                    message = "복합 결제는 PG(KPN)을 메인 결제수단으로 포함해야 합니다."
-                )
-            }
-            
-            val invalidSubMethods = paymentDetails
-                .filter { it.method != PaymentMethod.PG_KPN }
-                .any { it.method != PaymentMethod.CASHNOTE_POINT && it.method != PaymentMethod.COUPON }
-            
-            if (invalidSubMethods) {
-                return PaymentRules.ValidationResult(
-                    isValid = false,
-                    message = "복합 결제의 서브 결제수단은 포인트와 쿠폰만 가능합니다."
-                )
+        // 모든 검증 전략을 순차적으로 실행
+        for (strategy in validationStrategies) {
+            val result = strategy.validate(request)
+            if (!result.isValid) {
+                return result
             }
         }
         
-        return PaymentRules.ValidationResult(isValid = true)
+        return PaymentValidationResult(
+            isValid = true,
+            message = "모든 검증을 통과했습니다"
+        )
+    }
+    
+    /**
+     * 복합 결제 검증
+     */
+    fun validateCompositePayment(
+        mainMethod: PaymentMethod,
+        subMethods: List<PaymentMethod>,
+        totalAmount: Long,
+        memberId: Long
+    ): PaymentValidationResult {
+        // 복합결제 전용 검증
+        val metadata = mapOf(
+            "mainMethod" to mainMethod,
+            "subMethods" to subMethods
+        )
+        
+        return validate(
+            paymentMethod = PaymentMethod.COMPOSITE,
+            amount = totalAmount,
+            memberId = memberId,
+            metadata = metadata
+        )
     }
 }
