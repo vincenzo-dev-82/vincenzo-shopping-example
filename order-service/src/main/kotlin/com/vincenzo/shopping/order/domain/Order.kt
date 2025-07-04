@@ -37,7 +37,8 @@ enum class OrderStatus {
 
 enum class PaymentMethod {
     PG_KPN,         // PG 결제
-    POINT,          // 캐시노트 포인트
+    CASHNOTE_POINT, // 캐시노트 포인트
     COUPON,         // 쿠폰
-    BNPL            // 외상결제
+    BNPL,           // 외상결제
+    COMPOSITE       // 복합결제
 }
