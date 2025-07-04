@@ -9,6 +9,7 @@
 - **product-service**: 상품 서비스 (포트: 8082, gRPC: 9091)
 - **order-service**: 주문 서비스 (포트: 8083, gRPC: 9094)
 - **payment-service**: 결제 서비스 (포트: 8084, gRPC: 9093)
+- **point-service**: 포인트 서비스 (포트: 8085, gRPC: 9095)
 
 ## 기술 스택
 
@@ -46,6 +47,7 @@ gradle wrapper --gradle-version=8.5
 ./gradlew :product-service:build
 ./gradlew :order-service:build
 ./gradlew :payment-service:build
+./gradlew :point-service:build
 ```
 
 ### 3. 서비스 실행
@@ -58,6 +60,9 @@ gradle wrapper --gradle-version=8.5
 
 # Product Service
 ./gradlew :product-service:bootRun
+
+# Point Service
+./gradlew :point-service:bootRun
 
 # Order Service
 ./gradlew :order-service:bootRun
@@ -81,20 +86,24 @@ curl -X POST http://localhost:8081/api/members \
     "name": "Test User",
     "phoneNumber": "010-1234-5678"
   }'
+
+# 포인트 충전
+curl -X POST http://localhost:8085/api/points/charge \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": 1,
+    "amount": 50000,
+    "description": "포인트 충전"
+  }'
+
+# 포인트 잔액 조회
+curl http://localhost:8085/api/points/balance/1
 ```
 
-#### gRPC 통신 테스트
-```bash
-# Order Service에서 Member Service 호출 (gRPC)
-curl http://localhost:8083/api/orders/test-grpc/member/1
+#### 주문 API
 
-# Order Service에서 Product Service 호출 (gRPC)
-curl http://localhost:8083/api/orders/test-grpc/product/1
-```
-
-#### 주문 생성 (gRPC 통합)
+##### 1. PG 단독 결제
 ```bash
-# 주문 생성 - 회원 정보, 상품 정보를 gRPC로 조회하고 재고 차감
 curl -X POST http://localhost:8083/api/orders \
   -H "Content-Type: application/json" \
   -d '{
@@ -109,6 +118,116 @@ curl -X POST http://localhost:8083/api/orders \
   }'
 ```
 
+##### 2. 포인트 단독 결제
+```bash
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": 1,
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 1
+      }
+    ],
+    "paymentMethod": "POINT"
+  }'
+```
+
+##### 3. BNPL(외상결제) 단독 결제
+```bash
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": 1,
+    "items": [
+      {
+        "productId": 2,
+        "quantity": 1
+      }
+    ],
+    "paymentMethod": "BNPL"
+  }'
+```
+
+##### 4. 복합 결제 (PG + 포인트)
+```bash
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": 1,
+    "items": [
+      {
+        "productId": 3,
+        "quantity": 1
+      }
+    ],
+    "compositePayment": {
+      "details": [
+        {
+          "method": "POINT",
+          "amount": 5000
+        },
+        {
+          "method": "PG_KPN",
+          "amount": 5000
+        }
+      ]
+    }
+  }'
+```
+
+##### 5. 복합 결제 (PG + 쿠폰)
+```bash
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": 1,
+    "items": [
+      {
+        "productId": 4,
+        "quantity": 1
+      }
+    ],
+    "compositePayment": {
+      "details": [
+        {
+          "method": "COUPON",
+          "amount": 10000,
+          "metadata": {
+            "coupon_code": "WELCOME10"
+          }
+        },
+        {
+          "method": "PG_KPN",
+          "amount": 40000
+        }
+      ]
+    }
+  }'
+```
+
+## 결제 시스템 특징
+
+### 결제 방법
+1. **PG_KPN**: PG 결제 (카드, 계좌이체 등)
+2. **POINT**: 캐시노트 포인트
+3. **COUPON**: 쿠폰 할인
+4. **BNPL**: Buy Now Pay Later (외상결제)
+
+### 결제 제약사항
+- **복합결제**: PG를 메인으로 포인트, 쿠폰 조합 가능
+- **BNPL**: 단독 결제만 가능
+- **포인트**: 잔액이 충분한 경우 단독 결제 가능
+- **쿠폰**: 단독 결제 불가, 반드시 다른 결제수단과 함께 사용
+
+### 결제 프로세스
+1. 주문 생성 시 결제 방법 검증
+2. 재고 차감
+3. 결제 처리 (각 결제수단별 프로세서 실행)
+4. 실패 시 롤백 처리
+5. 주문 상태 업데이트
+
 ## 서비스 포트
 
 ### HTTP 포트
@@ -116,12 +235,14 @@ curl -X POST http://localhost:8083/api/orders \
 - Product Service: 8082
 - Order Service: 8083
 - Payment Service: 8084
+- Point Service: 8085
 
 ### gRPC 포트
 - Member Service: 9090
 - Product Service: 9091
 - Order Service: 9094
 - Payment Service: 9093
+- Point Service: 9095
 
 ### 인프라 포트
 - MySQL: 3306
@@ -147,16 +268,23 @@ curl -X POST http://localhost:8083/api/orders \
   - products (상품 정보) 
   - orders (주문 정보)
   - payments (결제 정보)
+  - payment_details (결제 상세)
+  - point_balances (포인트 잔액)
+  - point_transactions (포인트 거래내역)
 
 ## gRPC 설정
 
 ### Proto 파일 위치
 - `common/src/main/proto/member.proto`: 회원 서비스 Proto 정의
 - `common/src/main/proto/product.proto`: 상품 서비스 Proto 정의
+- `common/src/main/proto/point.proto`: 포인트 서비스 Proto 정의
+- `common/src/main/proto/payment.proto`: 결제 서비스 Proto 정의
 
 ### gRPC 서비스
-- **MemberService**: 회원 조회, 포인트 업데이트
+- **MemberService**: 회원 조회
 - **ProductService**: 상품 조회, 재고 업데이트
+- **PointService**: 포인트 조회, 사용, 충전, 환불
+- **PaymentService**: 결제 처리, 결제 조회
 
 ### gRPC 클라이언트 설정
 Order Service와 Payment Service는 gRPC 클라이언트를 통해 다른 서비스와 통신합니다:
@@ -173,7 +301,7 @@ Order Service와 Payment Service는 gRPC 클라이언트를 통해 다른 서비
 - Order Service: 주문 생성 시 이벤트 발행
 
 ### Consumer  
-- Payment Service: 주문 이벤트 구독하여 결제 처리
+- Payment Service: 주문 이벤트 구독하여 결제 상태 모니터링
 
 ## DB 접속 정보
 
@@ -191,3 +319,55 @@ mysql -h localhost -P 3306 -u root -proot shop
 - Database: shop
 - Username: root
 - Password: root
+
+## 테스트 시나리오
+
+### 1. 기본 데이터 생성
+- 서비스 시작 시 자동으로 테스트 데이터 생성
+- 회원 3명, 상품 4개, 각 회원에게 100,000 포인트 충전
+
+### 2. 결제 시나리오 테스트
+- PG 단독 결제
+- 포인트 단독 결제 (잔액 확인)
+- BNPL 단독 결제 (신용 평가)
+- 복합 결제 (PG + 포인트)
+- 복합 결제 (PG + 쿠폰)
+
+### 3. 실패 시나리오
+- 포인트 부족
+- BNPL 신용 평가 실패
+- 쿠폰 단독 결제 시도
+- BNPL 복합 결제 시도
+
+## 개선 사항
+
+### 구현된 기능
+- ✅ 포인트 서비스 분리
+- ✅ 복합결제 지원
+- ✅ 결제 전략 패턴 구현
+- ✅ 트랜잭션 롤백 처리
+- ✅ gRPC 서비스 간 통신
+
+### 향후 개선 방향
+- 분산 트랜잭션 관리 (Saga Pattern)
+- 재고 롤백 메커니즘 강화
+- 결제 실패 시 보상 트랜잭션
+- 서킷 브레이커 패턴 적용
+- 결제 히스토리 및 감사 로그
+- 쿠폰 서비스 분리
+- 이벤트 소싱 적용
+
+## 트래픽 대응 방안
+
+### 10배 트래픽 증가 시
+- 서비스별 오토 스케일링 적용
+- Redis 캐시 도입 (상품, 포인트 잔액)
+- 읽기 전용 DB 레플리카 구성
+- Kafka 파티션 증설
+
+### 100배 트래픽 증가 시
+- 서비스 메시 도입 (Istio)
+- CQRS 패턴 적용
+- 이벤트 스트리밍 플랫폼 전환
+- 샤딩 전략 수립
+- CDN 및 엣지 캐싱 활용
