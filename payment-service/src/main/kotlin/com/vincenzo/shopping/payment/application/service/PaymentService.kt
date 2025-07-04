@@ -7,7 +7,9 @@ import com.vincenzo.shopping.payment.application.port.`in`.PaymentDetailCommand
 import com.vincenzo.shopping.payment.application.port.`in`.ProcessPaymentCommand
 import com.vincenzo.shopping.payment.application.port.`in`.ProcessPaymentUseCase
 import com.vincenzo.shopping.payment.application.port.out.PaymentRepository
-import com.vincenzo.shopping.payment.application.processor.PaymentProcessor
+import com.vincenzo.shopping.payment.application.port.out.PaymentProcessor
+import com.vincenzo.shopping.payment.application.processor.PaymentProcessorFactory
+import com.vincenzo.shopping.payment.application.processor.LoggingPaymentProcessor
 import com.vincenzo.shopping.payment.domain.Payment
 import com.vincenzo.shopping.payment.domain.PaymentDetail
 import com.vincenzo.shopping.payment.domain.PaymentDetailStatus
@@ -22,13 +24,10 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional
 class PaymentService(
-    private val paymentProcessors: List<PaymentProcessor>,
+    private val paymentProcessorFactory: PaymentProcessorFactory,
     private val paymentRepository: PaymentRepository,
     private val kafkaTemplate: KafkaTemplate<String, KafkaMessage<*>>
 ) : ProcessPaymentUseCase, GetPaymentQuery {
-    
-    private val processorMap: Map<PaymentMethod, PaymentProcessor> = 
-        paymentProcessors.associateBy { it.getSupportedMethod() }
     
     override fun processPayment(command: ProcessPaymentCommand): Payment = runBlocking {
         println("[PaymentService] 결제 처리 시작 - 주문: ${command.orderId}")
@@ -88,8 +87,9 @@ class PaymentService(
         payment: Payment,
         detailCommand: PaymentDetailCommand
     ): Payment {
-        val processor = processorMap[detailCommand.method]
-            ?: throw IllegalStateException("결제 프로세서를 찾을 수 없습니다: ${detailCommand.method}")
+        val processor = LoggingPaymentProcessor(
+            paymentProcessorFactory.getProcessor(detailCommand.method)
+        )
         
         // 결제 검증
         val validationResult = processor.validate(
@@ -157,8 +157,9 @@ class PaymentService(
         try {
             // 서브 결제수단 먼저 처리 (포인트, 쿠폰)
             for (subDetail in subMethods) {
-                val processor = processorMap[subDetail.method]
-                    ?: throw IllegalStateException("결제 프로세서를 찾을 수 없습니다: ${subDetail.method}")
+                val processor = LoggingPaymentProcessor(
+                    paymentProcessorFactory.getProcessor(subDetail.method)
+                )
                 
                 val result = processor.process(
                     orderId = payment.orderId,
@@ -183,7 +184,9 @@ class PaymentService(
             }
             
             // 메인 결제수단 처리 (PG)
-            val mainProcessor = processorMap[mainMethod.method]!!
+            val mainProcessor = LoggingPaymentProcessor(
+                paymentProcessorFactory.getProcessor(mainMethod.method)
+            )
             val mainResult = mainProcessor.process(
                 orderId = payment.orderId,
                 memberId = payment.memberId,
@@ -228,7 +231,7 @@ class PaymentService(
     ) {
         for (detail in processedDetails) {
             try {
-                val processor = processorMap[detail.method]!!
+                val processor = paymentProcessorFactory.getProcessor(detail.method)
                 processor.cancel(detail, "복합결제 실패로 인한 롤백")
             } catch (e: Exception) {
                 println("[PaymentService] 롤백 실패 - ${detail.method}: ${e.message}")

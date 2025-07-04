@@ -1,8 +1,8 @@
 package com.vincenzo.shopping.payment.adapter.out.processor
 
-import com.vincenzo.shopping.payment.application.processor.PaymentProcessor
-import com.vincenzo.shopping.payment.application.processor.PaymentResult
-import com.vincenzo.shopping.payment.application.processor.ValidationResult
+import com.vincenzo.shopping.payment.application.port.out.PaymentProcessor
+import com.vincenzo.shopping.payment.application.port.out.PaymentResult
+import com.vincenzo.shopping.payment.application.port.out.ValidationResult
 import com.vincenzo.shopping.payment.domain.PaymentDetail
 import com.vincenzo.shopping.payment.domain.PaymentMethod
 import org.springframework.stereotype.Component
