@@ -38,7 +38,7 @@ class PointTransactionPersistenceAdapter(
             id = transaction.id,
             memberId = transaction.memberId,
             amount = transaction.amount,
-            type = transaction.type.name,
+            type = transaction.type,
             description = transaction.description,
             referenceId = transaction.referenceId,
             createdAt = transaction.createdAt
@@ -67,7 +67,7 @@ private fun PointTransactionEntity.toDomain(): PointTransaction {
         id = this.id,
         memberId = this.memberId,
         amount = this.amount,
-        type = TransactionType.valueOf(this.type),
+        type = this.type,
         description = this.description,
         referenceId = this.referenceId,
         createdAt = this.createdAt

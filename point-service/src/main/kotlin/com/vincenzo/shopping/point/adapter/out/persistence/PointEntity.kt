@@ -1,5 +1,6 @@
 package com.vincenzo.shopping.point.adapter.out.persistence
 
+import com.vincenzo.shopping.point.domain.TransactionType
 import jakarta.persistence.*
 import java.time.LocalDateTime
 
@@ -35,7 +36,7 @@ class PointTransactionEntity(
     
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    val type: String,
+    val type: TransactionType,
     
     @Column(nullable = false)
     val description: String,
