@@ -44,8 +44,8 @@ class CouponPaymentProcessor(
                 processedAmount = useResult.discountAmount,
                 metadata = mapOf(
                     "coupon_code" to couponCode,
-                    "discount_rate" to useResult.discountRate,
-                    "discount_amount" to useResult.discountAmount
+                    "discount_rate" to (useResult.discountRate?.toString() ?: "0"),
+                    "discount_amount" to (useResult.discountAmount?.toString() ?: "0")
                 )
             )
         } else {

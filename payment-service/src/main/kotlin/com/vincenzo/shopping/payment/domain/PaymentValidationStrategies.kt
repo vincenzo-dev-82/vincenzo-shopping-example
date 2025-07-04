@@ -33,6 +33,7 @@ class StandalonePaymentValidationStrategy : PaymentValidationStrategy {
             PaymentMethod.PG_KPN -> true
             PaymentMethod.BNPL -> true
             PaymentMethod.CASHNOTE_POINT -> true
+            PaymentMethod.POINT -> true  // CASHNOTE_POINT의 별칭
             PaymentMethod.COUPON -> false
             PaymentMethod.COMPOSITE -> true
         }
@@ -107,6 +108,7 @@ class AmountValidationStrategy : PaymentValidationStrategy {
             PaymentMethod.PG_KPN -> 100L to 50_000_000L
             PaymentMethod.BNPL -> 10_000L to 5_000_000L
             PaymentMethod.CASHNOTE_POINT -> 1L to 10_000_000L
+            PaymentMethod.POINT -> 1L to 10_000_000L  // CASHNOTE_POINT의 별칭
             PaymentMethod.COUPON -> 1L to 1_000_000L
             PaymentMethod.COMPOSITE -> 100L to 50_000_000L
         }

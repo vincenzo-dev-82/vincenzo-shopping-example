@@ -38,8 +38,8 @@ class BnplPaymentProcessor(
                 message = "BNPL 승인 성공",
                 processedAmount = amount,
                 metadata = mapOf(
-                    "due_date" to bnplResult.dueDate,
-                    "credit_limit" to bnplResult.creditLimit
+                    "due_date" to (bnplResult.dueDate ?: ""),
+                    "credit_limit" to (bnplResult.creditLimit?.toString() ?: "")
                 )
             )
         } else {
