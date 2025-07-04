@@ -5,89 +5,101 @@ import java.time.LocalDateTime
 data class Payment(
     val id: Long? = null,
     val orderId: Long,
-    val paymentDetails: List<PaymentDetail>,
+    val memberId: Long,
     val totalAmount: Long,
+    val paymentMethod: PaymentMethod,
     val status: PaymentStatus = PaymentStatus.PENDING,
+    val details: List<PaymentDetail> = emptyList(),
     val createdAt: LocalDateTime = LocalDateTime.now(),
     val completedAt: LocalDateTime? = null
 )
 
 data class PaymentDetail(
-    val id: Long? = null,
-    val paymentId: Long? = null,
     val method: PaymentMethod,
     val amount: Long,
-    val transactionId: String? = null,  // 외부 시스템의 트랜잭션 ID
-    val status: PaymentDetailStatus = PaymentDetailStatus.PENDING,
-    val metadata: Map<String, String> = emptyMap()  // 결제 수단별 추가 정보
+    val transactionId: String? = null,
+    val metadata: Map<String, Any> = emptyMap()
 )
 
-enum class PaymentMethod {
-    PG_KPN,         // PG 결제
-    POINT,          // 캐시노트 포인트
-    COUPON,         // 쿠폰
-    BNPL            // 외상결제
-}
-
 enum class PaymentStatus {
-    PENDING,        // 결제 대기
-    PROCESSING,     // 결제 처리중
-    COMPLETED,      // 결제 완료
-    FAILED,         // 결제 실패
-    CANCELLED,      // 결제 취소
-    REFUNDED        // 환불됨
-}
-
-enum class PaymentDetailStatus {
     PENDING,
+    PROCESSING,
     COMPLETED,
     FAILED,
     CANCELLED,
+    PARTIALLY_REFUNDED,
     REFUNDED
 }
 
-// 결제 제약사항 검증을 위한 도메인 서비스
-object PaymentValidator {
-    fun validate(paymentDetails: List<PaymentDetail>, totalAmount: Long): ValidationResult {
-        // 쿠폰은 단독 결제 불가
-        if (paymentDetails.size == 1 && paymentDetails[0].method == PaymentMethod.COUPON) {
-            return ValidationResult(false, "쿠폰은 단독으로 결제할 수 없습니다.")
-        }
-        
-        // BNPL은 단독 결제만 가능
-        val hasBnpl = paymentDetails.any { it.method == PaymentMethod.BNPL }
-        if (hasBnpl && paymentDetails.size > 1) {
-            return ValidationResult(false, "BNPL은 다른 결제 수단과 함께 사용할 수 없습니다.")
-        }
-        
-        // 복합결제는 PG를 메인으로, 포인트/쿠폰 가능
-        if (paymentDetails.size > 1) {
-            val hasPg = paymentDetails.any { it.method == PaymentMethod.PG_KPN }
-            if (!hasPg) {
-                return ValidationResult(false, "복합결제 시 PG 결제가 포함되어야 합니다.")
+enum class PaymentMethod {
+    PG_KPN,
+    CASHNOTE_POINT,
+    BNPL,
+    COUPON,
+    COMPOSITE  // 복합결제
+}
+
+// 결제 검증 규칙
+object PaymentRules {
+    fun validatePaymentMethod(method: PaymentMethod, amount: Long, memberPoint: Int): PaymentValidationResult {
+        return when (method) {
+            PaymentMethod.COUPON -> {
+                PaymentValidationResult(
+                    isValid = false,
+                    message = "쿠폰은 단독 결제가 불가능합니다."
+                )
             }
-            
-            val invalidMethods = paymentDetails.filter { 
-                it.method != PaymentMethod.PG_KPN && 
-                it.method != PaymentMethod.POINT && 
-                it.method != PaymentMethod.COUPON 
+            PaymentMethod.CASHNOTE_POINT -> {
+                if (memberPoint >= amount) {
+                    PaymentValidationResult(isValid = true)
+                } else {
+                    PaymentValidationResult(
+                        isValid = false,
+                        message = "캐시노트 포인트가 부족합니다. 필요: $amount, 보유: $memberPoint"
+                    )
+                }
             }
-            if (invalidMethods.isNotEmpty()) {
-                return ValidationResult(false, "복합결제는 PG, 포인트, 쿠폰만 가능합니다.")
+            PaymentMethod.BNPL -> {
+                // BNPL은 단독 결제만 가능
+                PaymentValidationResult(isValid = true)
             }
+            PaymentMethod.COMPOSITE -> {
+                // 복합결제는 별도 검증 필요
+                PaymentValidationResult(isValid = true)
+            }
+            else -> PaymentValidationResult(isValid = true)
+        }
+    }
+    
+    fun validateCompositePayment(
+        mainMethod: PaymentMethod,
+        subMethods: List<PaymentMethod>
+    ): PaymentValidationResult {
+        // 복합결제는 PG가 메인이어야 함
+        if (mainMethod != PaymentMethod.PG_KPN) {
+            return PaymentValidationResult(
+                isValid = false,
+                message = "복합결제의 메인 결제수단은 PG(KPN)이어야 합니다."
+            )
         }
         
-        // 금액 검증
-        val paymentSum = paymentDetails.sumOf { it.amount }
-        if (paymentSum != totalAmount) {
-            return ValidationResult(false, "결제 금액 합계가 주문 금액과 일치하지 않습니다.")
+        // 서브 결제수단 검증
+        val invalidSubMethods = subMethods.filter { 
+            it != PaymentMethod.CASHNOTE_POINT && it != PaymentMethod.COUPON
         }
         
-        return ValidationResult(true)
+        if (invalidSubMethods.isNotEmpty()) {
+            return PaymentValidationResult(
+                isValid = false,
+                message = "복합결제의 서브 결제수단은 캐시노트 포인트와 쿠폰만 가능합니다."
+            )
+        }
+        
+        return PaymentValidationResult(isValid = true)
     }
 }
 
-data class ValidationResult(
+data class PaymentValidationResult(
     val isValid: Boolean,
     val message: String? = null
 )
