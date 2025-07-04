@@ -14,5 +14,7 @@ class MemberEntity(
     
     val name: String,
     
-    val phoneNumber: String
+    val phoneNumber: String,
+    
+    val point: Int = 0
 )
