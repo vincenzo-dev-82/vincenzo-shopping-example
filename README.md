@@ -1,6 +1,6 @@
 # Vincenzo Shopping Example
 
-마켓 주문 서비스 구현 프로젝트
+캐시노트 마켓 주문 서비스 구현 프로젝트
 
 ## 프로젝트 구조
 
@@ -39,22 +39,18 @@ docker-compose ps
 # Gradle Wrapper 설정 (최초 1회)
 gradle wrapper --gradle-version=8.5
 
-# 프로젝트 빌드
+# Common 모듈 먼저 빌드 (Proto 파일 컴파일)
+./gradlew :common:build
+
+# 전체 프로젝트 빌드
 ./gradlew clean build
 
 # 또는 각 서비스별 빌드
-<<<<<<< Updated upstream
 ./gradlew :member-service:build
 ./gradlew :product-service:build
 ./gradlew :order-service:build
 ./gradlew :payment-service:build
 ./gradlew :point-service:build
-=======
-./gradlew :member-service:clean :member-service:build
-./gradlew :product-service:clean :product-service:build
-./gradlew :order-service:clean :order-service:build
-./gradlew :payment-service:clean :payment-service:build
->>>>>>> Stashed changes
 ```
 
 ### 3. 서비스 실행
@@ -345,36 +341,3 @@ mysql -h localhost -P 3306 -u root -proot shop
 - BNPL 신용 평가 실패
 - 쿠폰 단독 결제 시도
 - BNPL 복합 결제 시도
-
-## 개선 사항
-
-### 구현된 기능
-- ✅ 포인트 서비스 분리
-- ✅ 복합결제 지원
-- ✅ 결제 전략 패턴 구현
-- ✅ 트랜잭션 롤백 처리
-- ✅ gRPC 서비스 간 통신
-
-### 향후 개선 방향
-- 분산 트랜잭션 관리 (Saga Pattern)
-- 재고 롤백 메커니즘 강화
-- 결제 실패 시 보상 트랜잭션
-- 서킷 브레이커 패턴 적용
-- 결제 히스토리 및 감사 로그
-- 쿠폰 서비스 분리
-- 이벤트 소싱 적용
-
-## 트래픽 대응 방안
-
-### 10배 트래픽 증가 시
-- 서비스별 오토 스케일링 적용
-- Redis 캐시 도입 (상품, 포인트 잔액)
-- 읽기 전용 DB 레플리카 구성
-- Kafka 파티션 증설
-
-### 100배 트래픽 증가 시
-- 서비스 메시 도입 (Istio)
-- CQRS 패턴 적용
-- 이벤트 스트리밍 플랫폼 전환
-- 샤딩 전략 수립
-- CDN 및 엣지 캐싱 활용
