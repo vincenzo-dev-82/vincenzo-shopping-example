@@ -9,7 +9,7 @@ data class Payment(
     val totalAmount: Long,
     val paymentMethod: PaymentMethod,
     val status: PaymentStatus = PaymentStatus.PENDING,
-    val details: List<PaymentDetail> = emptyList(),
+    val paymentDetails: List<PaymentDetail> = emptyList(),
     val createdAt: LocalDateTime = LocalDateTime.now(),
     val completedAt: LocalDateTime? = null
 )
@@ -18,8 +18,16 @@ data class PaymentDetail(
     val method: PaymentMethod,
     val amount: Long,
     val transactionId: String? = null,
+    val status: PaymentDetailStatus = PaymentDetailStatus.PENDING,
     val metadata: Map<String, Any> = emptyMap()
 )
+
+enum class PaymentDetailStatus {
+    PENDING,
+    SUCCESS,
+    FAILED,
+    CANCELLED
+}
 
 enum class PaymentStatus {
     PENDING,
@@ -34,6 +42,7 @@ enum class PaymentStatus {
 enum class PaymentMethod {
     PG_KPN,
     CASHNOTE_POINT,
+    POINT,  // CASHNOTE_POINT의 별칭
     BNPL,
     COUPON,
     COMPOSITE  // 복합결제
@@ -49,7 +58,7 @@ object PaymentRules {
                     message = "쿠폰은 단독 결제가 불가능합니다."
                 )
             }
-            PaymentMethod.CASHNOTE_POINT -> {
+            PaymentMethod.CASHNOTE_POINT, PaymentMethod.POINT -> {
                 if (memberPoint >= amount) {
                     PaymentValidationResult(isValid = true)
                 } else {
@@ -85,7 +94,7 @@ object PaymentRules {
         
         // 서브 결제수단 검증
         val invalidSubMethods = subMethods.filter { 
-            it != PaymentMethod.CASHNOTE_POINT && it != PaymentMethod.COUPON
+            it != PaymentMethod.CASHNOTE_POINT && it != PaymentMethod.POINT && it != PaymentMethod.COUPON
         }
         
         if (invalidSubMethods.isNotEmpty()) {
