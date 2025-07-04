@@ -24,13 +24,7 @@
 
 ## 빠른 시작
 
-### 1. 프로젝트 클론
-```bash
-git clone https://github.com/vincenzo-dev-82/vincenzo-shopping-example.git
-cd vincenzo-shopping-example
-```
-
-### 2. Docker로 전체 환경 실행
+### 1. Docker로 전체 환경 실행
 ```bash
 # 인프라 실행 (MySQL, Kafka)
 docker-compose up -d
@@ -42,7 +36,7 @@ docker-compose up -d
 docker-compose -f docker-compose-all.yml up -d
 ```
 
-### 3. 헬스 체크
+### 2. 헬스 체크
 ```bash
 # Spring Boot Actuator를 통한 상태 확인
 curl http://localhost:8081/actuator/health
@@ -55,7 +49,7 @@ curl http://localhost:8085/actuator/health
 curl http://localhost:8081/actuator/health | jq .
 ```
 
-### 4. 주문 테스트
+### 3. 주문 테스트
 ```bash
 # 주문 생성 (PG 결제)
 curl -X POST http://localhost:8083/api/orders \
