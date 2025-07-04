@@ -1,108 +1,170 @@
-# API 명세
+# 캐시노트 마켓 API 명세서
+
+## 목차
+1. [개요](#개요)
+2. [공통 규격](#공통-규격)
+3. [Member Service API](#member-service-api)
+4. [Product Service API](#product-service-api)
+5. [Order Service API](#order-service-api)
+6. [Payment Service API](#payment-service-api)
+7. [에러 코드](#에러-코드)
+8. [gRPC API](#grpc-api)
 
 ## 개요
 
-캐시노트 마켓 주문 서비스의 REST API 명세입니다. 모든 API는 JSON 형식으로 요청과 응답을 처리합니다.
+이 문서는 캐시노트 마켓의 REST API 및 gRPC API 명세를 정의합니다.
 
-## 공통 사항
+### API 버전
+- 현재 버전: v1
+- Base URL 형식: `http://{service-host}:{port}/api/{resource}`
 
-### Base URL
-- Member Service: `http://localhost:8081`
-- Product Service: `http://localhost:8082`
-- Order Service: `http://localhost:8083`
-- Payment Service: `http://localhost:8084`
-- Point Service: `http://localhost:8085`
+### 인증
+현재는 인증 없이 사용 가능 (추후 JWT 기반 인증 추가 예정)
 
-### Headers
+## 공통 규격
+
+### 요청 헤더
 ```
 Content-Type: application/json
+Accept: application/json
 ```
 
-### 공통 에러 응답
+### 응답 형식
+모든 API 응답은 다음과 같은 형식을 따릅니다:
+
+#### 성공 응답
 ```json
 {
-  "error": "에러 메시지",
-  "status": "FAILED",
-  "timestamp": "2024-01-20T10:00:00"
+  "status": "success",
+  "data": { ... },
+  "timestamp": "2024-01-20T10:30:00Z"
 }
 ```
 
----
-
-## 1. Member Service (회원 서비스)
-
-### 1.1 회원 생성
-- **URL**: `POST /api/members`
-- **설명**: 새로운 회원을 생성합니다.
-
-#### Request Body
+#### 에러 응답
 ```json
 {
-  "email": "test@example.com",
+  "status": "error",
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "에러 메시지",
+    "details": { ... }
+  },
+  "timestamp": "2024-01-20T10:30:00Z"
+}
+```
+
+### HTTP 상태 코드
+- `200 OK`: 성공
+- `201 Created`: 리소스 생성 성공
+- `400 Bad Request`: 잘못된 요청
+- `404 Not Found`: 리소스를 찾을 수 없음
+- `500 Internal Server Error`: 서버 에러
+
+## Member Service API
+
+### Base URL
+`http://localhost:8081/api/members`
+
+### 1. 회원 생성
+회원을 새로 등록합니다.
+
+**Endpoint**
+```
+POST /api/members
+```
+
+**Request Body**
+```json
+{
+  "email": "user@example.com",
   "name": "홍길동",
   "phoneNumber": "010-1234-5678"
 }
 ```
 
-#### Response (201 Created)
+**Response**
 ```json
 {
   "id": 1,
-  "email": "test@example.com",
+  "email": "user@example.com",
   "name": "홍길동",
   "phoneNumber": "010-1234-5678",
   "point": 0
 }
 ```
 
-### 1.2 회원 목록 조회
-- **URL**: `GET /api/members`
-- **설명**: 전체 회원 목록을 조회합니다.
+**Validation Rules**
+- `email`: 필수, 이메일 형식, 중복 불가
+- `name`: 필수, 2-50자
+- `phoneNumber`: 필수, 한국 휴대폰 번호 형식
 
-#### Response (200 OK)
-```json
-[
-  {
-    "id": 1,
-    "email": "test1@example.com",
-    "name": "테스트1",
-    "phoneNumber": "010-1111-1111",
-    "point": 100000
-  },
-  {
-    "id": 2,
-    "email": "test2@example.com",
-    "name": "테스트2",
-    "phoneNumber": "010-2222-2222",
-    "point": 100000
-  }
-]
+### 2. 회원 조회
+회원 정보를 조회합니다.
+
+**Endpoint**
+```
+GET /api/members/{memberId}
 ```
 
-### 1.3 회원 조회
-- **URL**: `GET /api/members/{memberId}`
-- **설명**: 특정 회원 정보를 조회합니다.
+**Path Parameters**
+- `memberId`: 회원 ID (Long)
 
-#### Response (200 OK)
+**Response**
 ```json
 {
   "id": 1,
-  "email": "test@example.com",
+  "email": "user@example.com",
   "name": "홍길동",
   "phoneNumber": "010-1234-5678",
   "point": 50000
 }
 ```
 
----
+### 3. 회원 포인트 조회
+회원의 현재 포인트를 조회합니다.
 
-## 2. Product Service (상품 서비스)
+**Endpoint**
+```
+GET /api/members/{memberId}/point
+```
 
-### 2.1 상품 생성
-- **URL**: `POST /api/products`
-- **설명**: 새로운 상품을 등록합니다.
+**Response**
+```json
+{
+  "memberId": 1,
+  "currentPoint": 50000,
+  "lastUpdated": "2024-01-20T10:30:00Z"
+}
+```
 
-#### Request Body
+### 4. 헬스 체크
+서비스 상태를 확인합니다.
+
+**Endpoint**
+```
+GET /api/members/hello
+```
+
+**Response**
+```
+Hello from Member Service!
+```
+
+## Product Service API
+
+### Base URL
+`http://localhost:8082/api/products`
+
+### 1. 상품 생성
+새로운 상품을 등록합니다.
+
+**Endpoint**
+```
+POST /api/products
+```
+
+**Request Body**
 ```json
 {
   "name": "캐시노트 포인트 충전권 10000원",
@@ -112,7 +174,7 @@ Content-Type: application/json
 }
 ```
 
-#### Response (201 Created)
+**Response**
 ```json
 {
   "id": 1,
@@ -123,11 +185,43 @@ Content-Type: application/json
 }
 ```
 
-### 2.2 상품 목록 조회
-- **URL**: `GET /api/products`
-- **설명**: 전체 상품 목록을 조회합니다.
+**Validation Rules**
+- `name`: 필수, 1-200자
+- `price`: 필수, 0 이상
+- `stock`: 필수, 0 이상
+- `sellerId`: 필수
 
-#### Response (200 OK)
+### 2. 상품 조회
+특정 상품 정보를 조회합니다.
+
+**Endpoint**
+```
+GET /api/products/{productId}
+```
+
+**Path Parameters**
+- `productId`: 상품 ID (Long)
+
+**Response**
+```json
+{
+  "id": 1,
+  "name": "캐시노트 포인트 충전권 10000원",
+  "price": 10000,
+  "stock": 95,
+  "sellerId": "cashnote"
+}
+```
+
+### 3. 전체 상품 목록 조회
+모든 상품을 조회합니다.
+
+**Endpoint**
+```
+GET /api/products
+```
+
+**Response**
 ```json
 [
   {
@@ -147,33 +241,46 @@ Content-Type: application/json
 ]
 ```
 
-### 2.3 상품 조회
-- **URL**: `GET /api/products/{productId}`
-- **설명**: 특정 상품 정보를 조회합니다.
+### 4. 판매자별 상품 조회
+특정 판매자의 상품을 조회합니다.
 
-#### Response (200 OK)
-```json
-{
-  "id": 1,
-  "name": "캐시노트 포인트 충전권 10000원",
-  "price": 10000,
-  "stock": 95,
-  "sellerId": "cashnote"
-}
+**Endpoint**
+```
+GET /api/products/seller/{sellerId}
 ```
 
-### 2.4 재고 수정
-- **URL**: `PATCH /api/products/{productId}/stock`
-- **설명**: 상품 재고를 수정합니다.
+**Path Parameters**
+- `sellerId`: 판매자 ID (String)
 
-#### Request Body
+**Response**
+```json
+[
+  {
+    "id": 1,
+    "name": "캐시노트 포인트 충전권 1000원",
+    "price": 1000,
+    "stock": 100,
+    "sellerId": "cashnote"
+  }
+]
+```
+
+### 5. 재고 수정
+상품의 재고를 수정합니다.
+
+**Endpoint**
+```
+PATCH /api/products/{productId}/stock
+```
+
+**Request Body**
 ```json
 {
   "quantityChange": -5
 }
 ```
 
-#### Response (200 OK)
+**Response**
 ```json
 {
   "id": 1,
@@ -184,166 +291,24 @@ Content-Type: application/json
 }
 ```
 
----
+**Notes**
+- `quantityChange`: 양수면 증가, 음수면 감소
+- 재고가 0 미만이 되는 경우 에러 발생
 
-## 3. Point Service (포인트 서비스)
+## Order Service API
 
-### 3.1 포인트 충전
-- **URL**: `POST /api/points/charge`
-- **설명**: 회원의 포인트를 충전합니다.
+### Base URL
+`http://localhost:8083/api/orders`
 
-#### Request Body
-```json
-{
-  "memberId": 1,
-  "amount": 50000,
-  "description": "포인트 충전"
-}
+### 1. 주문 생성
+새로운 주문을 생성합니다.
+
+**Endpoint**
+```
+POST /api/orders
 ```
 
-#### Response (200 OK)
-```json
-{
-  "memberId": 1,
-  "balance": 150000,
-  "transaction": {
-    "id": 1,
-    "type": "CHARGE",
-    "amount": 50000,
-    "description": "포인트 충전",
-    "createdAt": "2024-01-20T10:00:00"
-  }
-}
-```
-
-### 3.2 포인트 잔액 조회
-- **URL**: `GET /api/points/balance/{memberId}`
-- **설명**: 회원의 포인트 잔액을 조회합니다.
-
-#### Response (200 OK)
-```json
-{
-  "memberId": 1,
-  "balance": 150000,
-  "lastUpdated": "2024-01-20T10:00:00"
-}
-```
-
-### 3.3 포인트 사용
-- **URL**: `POST /api/points/use`
-- **설명**: 포인트를 사용합니다.
-
-#### Request Body
-```json
-{
-  "memberId": 1,
-  "amount": 10000,
-  "orderId": 12345,
-  "description": "주문 결제"
-}
-```
-
-#### Response (200 OK)
-```json
-{
-  "memberId": 1,
-  "balance": 140000,
-  "transaction": {
-    "id": 2,
-    "type": "USE",
-    "amount": -10000,
-    "orderId": 12345,
-    "description": "주문 결제",
-    "createdAt": "2024-01-20T10:05:00"
-  }
-}
-```
-
-### 3.4 포인트 환불
-- **URL**: `POST /api/points/refund`
-- **설명**: 사용한 포인트를 환불합니다.
-
-#### Request Body
-```json
-{
-  "memberId": 1,
-  "amount": 10000,
-  "orderId": 12345,
-  "description": "주문 취소 환불"
-}
-```
-
-#### Response (200 OK)
-```json
-{
-  "memberId": 1,
-  "balance": 150000,
-  "transaction": {
-    "id": 3,
-    "type": "REFUND",
-    "amount": 10000,
-    "orderId": 12345,
-    "description": "주문 취소 환불",
-    "createdAt": "2024-01-20T10:10:00"
-  }
-}
-```
-
-### 3.5 포인트 거래 내역 조회
-- **URL**: `GET /api/points/transactions/{memberId}`
-- **설명**: 회원의 포인트 거래 내역을 조회합니다.
-
-#### Query Parameters
-- `page`: 페이지 번호 (기본값: 0)
-- `size`: 페이지 크기 (기본값: 20)
-
-#### Response (200 OK)
-```json
-{
-  "memberId": 1,
-  "transactions": [
-    {
-      "id": 3,
-      "type": "REFUND",
-      "amount": 10000,
-      "balance": 150000,
-      "orderId": 12345,
-      "description": "주문 취소 환불",
-      "createdAt": "2024-01-20T10:10:00"
-    },
-    {
-      "id": 2,
-      "type": "USE",
-      "amount": -10000,
-      "balance": 140000,
-      "orderId": 12345,
-      "description": "주문 결제",
-      "createdAt": "2024-01-20T10:05:00"
-    },
-    {
-      "id": 1,
-      "type": "CHARGE",
-      "amount": 50000,
-      "balance": 150000,
-      "description": "포인트 충전",
-      "createdAt": "2024-01-20T10:00:00"
-    }
-  ],
-  "totalElements": 3,
-  "totalPages": 1,
-  "currentPage": 0
-}
-```
-
----
-
-## 4. Order Service (주문 서비스)
-
-### 4.1 주문 생성 (단일 결제)
-- **URL**: `POST /api/orders`
-- **설명**: 새로운 주문을 생성합니다.
-
-#### Request Body - PG 결제
+**Request Body - 단일 결제**
 ```json
 {
   "memberId": 1,
@@ -351,65 +316,17 @@ Content-Type: application/json
     {
       "productId": 1,
       "quantity": 2
+    },
+    {
+      "productId": 2,
+      "quantity": 1
     }
   ],
   "paymentMethod": "PG_KPN"
 }
 ```
 
-#### Request Body - 포인트 결제
-```json
-{
-  "memberId": 1,
-  "items": [
-    {
-      "productId": 1,
-      "quantity": 1
-    }
-  ],
-  "paymentMethod": "POINT"
-}
-```
-
-#### Request Body - BNPL 결제
-```json
-{
-  "memberId": 1,
-  "items": [
-    {
-      "productId": 2,
-      "quantity": 1
-    }
-  ],
-  "paymentMethod": "BNPL"
-}
-```
-
-#### Response (201 Created)
-```json
-{
-  "orderId": 12345,
-  "status": "COMPLETED",
-  "totalAmount": 2000,
-  "paymentMethod": "PG_KPN",
-  "items": [
-    {
-      "productId": 1,
-      "productName": "캐시노트 포인트 충전권 1000원",
-      "price": 1000,
-      "quantity": 2
-    }
-  ],
-  "paymentId": 67890,
-  "createdAt": "2024-01-20T10:00:00"
-}
-```
-
-### 4.2 주문 생성 (복합 결제)
-- **URL**: `POST /api/orders`
-- **설명**: 복합 결제로 주문을 생성합니다.
-
-#### Request Body - PG + 포인트
+**Request Body - 복합 결제**
 ```json
 {
   "memberId": 1,
@@ -419,398 +336,491 @@ Content-Type: application/json
       "quantity": 1
     }
   ],
-  "compositePayment": {
-    "details": [
-      {
-        "method": "POINT",
-        "amount": 5000
-      },
-      {
-        "method": "PG_KPN",
-        "amount": 5000
-      }
-    ]
-  }
+  "paymentMethod": "COMPOSITE"
 }
 ```
 
-#### Request Body - PG + 쿠폰
+**Response - 성공**
 ```json
 {
-  "memberId": 1,
-  "items": [
-    {
-      "productId": 4,
-      "quantity": 1
-    }
-  ],
-  "compositePayment": {
-    "details": [
-      {
-        "method": "COUPON",
-        "amount": 10000,
-        "metadata": {
-          "coupon_code": "WELCOME10"
-        }
-      },
-      {
-        "method": "PG_KPN",
-        "amount": 40000
-      }
-    ]
-  }
-}
-```
-
-#### Response (201 Created)
-```json
-{
-  "orderId": 12346,
-  "status": "COMPLETED",
-  "totalAmount": 50000,
-  "paymentMethod": "COMPOSITE",
-  "items": [
-    {
-      "productId": 4,
-      "productName": "캐시노트 포인트 충전권 50000원",
-      "price": 50000,
-      "quantity": 1
-    }
-  ],
-  "paymentId": 67891,
-  "paymentDetails": [
-    {
-      "method": "COUPON",
-      "amount": 10000,
-      "status": "SUCCESS"
-    },
-    {
-      "method": "PG_KPN",
-      "amount": 40000,
-      "status": "SUCCESS"
-    }
-  ],
-  "createdAt": "2024-01-20T10:00:00"
-}
-```
-
-### 4.3 주문 조회
-- **URL**: `GET /api/orders/{orderId}`
-- **설명**: 주문 정보를 조회합니다.
-
-#### Response (200 OK)
-```json
-{
-  "orderId": 12345,
-  "memberId": 1,
-  "status": "COMPLETED",
-  "totalAmount": 2000,
-  "paymentMethod": "PG_KPN",
+  "orderId": 1001,
+  "status": "PENDING",
+  "totalAmount": 15000,
   "items": [
     {
       "productId": 1,
-      "productName": "캐시노트 포인트 충전권 1000원",
-      "price": 1000,
+      "productName": "캐시노트 포인트 충전권 5000원",
+      "price": 5000,
       "quantity": 2
-    }
-  ],
-  "paymentId": 67890,
-  "createdAt": "2024-01-20T10:00:00",
-  "updatedAt": "2024-01-20T10:00:30"
-}
-```
-
-### 4.4 회원별 주문 목록 조회
-- **URL**: `GET /api/orders/member/{memberId}`
-- **설명**: 특정 회원의 주문 목록을 조회합니다.
-
-#### Query Parameters
-- `page`: 페이지 번호 (기본값: 0)
-- `size`: 페이지 크기 (기본값: 20)
-- `status`: 주문 상태 필터 (PENDING, PAID, COMPLETED, CANCELLED)
-
-#### Response (200 OK)
-```json
-{
-  "orders": [
-    {
-      "orderId": 12346,
-      "status": "COMPLETED",
-      "totalAmount": 50000,
-      "paymentMethod": "COMPOSITE",
-      "itemCount": 1,
-      "createdAt": "2024-01-20T10:05:00"
     },
     {
-      "orderId": 12345,
-      "status": "COMPLETED",
-      "totalAmount": 2000,
-      "paymentMethod": "PG_KPN",
-      "itemCount": 1,
-      "createdAt": "2024-01-20T10:00:00"
+      "productId": 2,
+      "productName": "캐시노트 포인트 충전권 5000원",
+      "price": 5000,
+      "quantity": 1
     }
-  ],
-  "totalElements": 2,
-  "totalPages": 1,
-  "currentPage": 0
+  ]
 }
 ```
 
-### 4.5 주문 취소
-- **URL**: `POST /api/orders/{orderId}/cancel`
-- **설명**: 주문을 취소합니다.
-
-#### Request Body
+**Response - 실패**
 ```json
 {
-  "reason": "단순 변심"
+  "error": "재고가 부족합니다. 상품: 캐시노트 포인트 충전권 10000원, 재고: 0, 요청수량: 2",
+  "status": "FAILED"
 }
 ```
 
-#### Response (200 OK)
+**Payment Methods**
+- `PG_KPN`: PG 결제
+- `CASHNOTE_POINT`: 캐시노트 포인트
+- `BNPL`: 후불결제
+- `COMPOSITE`: 복합결제
+
+**Validation Rules**
+- `memberId`: 필수, 존재하는 회원
+- `items`: 필수, 최소 1개 이상
+- `quantity`: 각 아이템당 1개 이상
+
+### 2. gRPC 통신 테스트 - 회원 조회
+Order Service에서 Member Service를 gRPC로 호출합니다.
+
+**Endpoint**
+```
+GET /api/orders/test-grpc/member/{memberId}
+```
+
+**Response**
 ```json
 {
-  "orderId": 12345,
-  "status": "CANCELLED",
-  "cancelledAt": "2024-01-20T11:00:00",
-  "refundAmount": 2000,
-  "refundStatus": "COMPLETED"
+  "id": 1,
+  "email": "user@example.com",
+  "name": "홍길동",
+  "phoneNumber": "010-1234-5678",
+  "point": 50000
 }
 ```
 
----
+### 3. gRPC 통신 테스트 - 상품 조회
+Order Service에서 Product Service를 gRPC로 호출합니다.
 
-## 5. Payment Service (결제 서비스)
+**Endpoint**
+```
+GET /api/orders/test-grpc/product/{productId}
+```
 
-### 5.1 결제 처리
-- **URL**: `POST /api/payments`
-- **설명**: 결제를 처리합니다. (주로 Order Service에서 내부 호출)
-
-#### Request Body
+**Response**
 ```json
 {
-  "orderId": 12345,
+  "id": 1,
+  "name": "캐시노트 포인트 충전권 10000원",
+  "price": 10000,
+  "stock": 95,
+  "sellerId": "cashnote"
+}
+```
+
+## Payment Service API
+
+### Base URL
+`http://localhost:8084/api/payments`
+
+### 1. 결제 처리
+주문에 대한 결제를 처리합니다.
+
+**Endpoint**
+```
+POST /api/payments
+```
+
+**Request Body - 단일 결제 (PG)**
+```json
+{
+  "orderId": 1001,
+  "memberId": 1,
+  "totalAmount": 50000,
+  "paymentDetails": [
+    {
+      "method": "PG_KPN",
+      "amount": 50000,
+      "metadata": {
+        "cardNumber": "****-****-****-1234"
+      }
+    }
+  ]
+}
+```
+
+**Request Body - 단일 결제 (포인트)**
+```json
+{
+  "orderId": 1002,
   "memberId": 1,
   "totalAmount": 10000,
+  "paymentDetails": [
+    {
+      "method": "CASHNOTE_POINT",
+      "amount": 10000,
+      "metadata": {}
+    }
+  ]
+}
+```
+
+**Request Body - 복합 결제**
+```json
+{
+  "orderId": 1003,
+  "memberId": 1,
+  "totalAmount": 100000,
+  "paymentDetails": [
+    {
+      "method": "PG_KPN",
+      "amount": 70000,
+      "metadata": {}
+    },
+    {
+      "method": "CASHNOTE_POINT",
+      "amount": 20000,
+      "metadata": {}
+    },
+    {
+      "method": "COUPON",
+      "amount": 10000,
+      "metadata": {
+        "couponCode": "WELCOME10"
+      }
+    }
+  ]
+}
+```
+
+**Response - 성공**
+```json
+{
+  "paymentId": 2001,
+  "orderId": 1001,
+  "status": "COMPLETED",
+  "totalAmount": 50000,
   "paymentMethod": "PG_KPN",
-  "metadata": {
-    "pg_key": "test_key"
+  "paymentDetails": [
+    {
+      "method": "PG_KPN",
+      "amount": 50000,
+      "status": "SUCCESS",
+      "transactionId": "PG_550e8400-e29b-41d4-a716-446655440000"
+    }
+  ],
+  "createdAt": "2024-01-20T10:30:00Z",
+  "completedAt": "2024-01-20T10:30:05Z"
+}
+```
+
+**Response - 실패**
+```json
+{
+  "error": {
+    "code": "PAYMENT_FAILED",
+    "message": "결제 처리 실패: PG 결제 실패: 카드 잔액 부족"
   }
 }
 ```
 
-#### Response (200 OK)
-```json
-{
-  "paymentId": 67890,
-  "orderId": 12345,
-  "status": "SUCCESS",
-  "paymentMethod": "PG_KPN",
-  "amount": 10000,
-  "transactionId": "TXN_123456",
-  "processedAt": "2024-01-20T10:00:00"
-}
+### 2. 결제 조회 (결제 ID)
+결제 ID로 결제 정보를 조회합니다.
+
+**Endpoint**
+```
+GET /api/payments/{paymentId}
 ```
 
-### 5.2 결제 조회
-- **URL**: `GET /api/payments/{paymentId}`
-- **설명**: 결제 정보를 조회합니다.
-
-#### Response (200 OK)
+**Response**
 ```json
 {
-  "paymentId": 67890,
-  "orderId": 12345,
+  "paymentId": 2001,
+  "orderId": 1001,
   "memberId": 1,
-  "status": "SUCCESS",
+  "totalAmount": 50000,
   "paymentMethod": "PG_KPN",
-  "totalAmount": 10000,
-  "details": [
+  "status": "COMPLETED",
+  "paymentDetails": [
     {
       "method": "PG_KPN",
-      "amount": 10000,
+      "amount": 50000,
       "status": "SUCCESS",
-      "transactionId": "TXN_123456"
+      "transactionId": "PG_550e8400-e29b-41d4-a716-446655440000"
     }
   ],
-  "createdAt": "2024-01-20T10:00:00",
-  "updatedAt": "2024-01-20T10:00:00"
+  "createdAt": "2024-01-20T10:30:00Z",
+  "completedAt": "2024-01-20T10:30:05Z"
 }
 ```
 
-### 5.3 결제 환불
-- **URL**: `POST /api/payments/{paymentId}/refund`
-- **설명**: 결제를 환불합니다.
+### 3. 결제 조회 (주문 ID)
+주문 ID로 결제 정보를 조회합니다.
 
-#### Request Body
+**Endpoint**
+```
+GET /api/payments/order/{orderId}
+```
+
+**Response**
+위와 동일한 형식
+
+### 4. 결제 취소
+결제를 취소합니다.
+
+**Endpoint**
+```
+POST /api/payments/{paymentId}/cancel
+```
+
+**Request Body**
 ```json
 {
-  "amount": 10000,
-  "reason": "주문 취소"
+  "reason": "고객 요청으로 인한 취소"
 }
 ```
 
-#### Response (200 OK)
+**Response**
 ```json
 {
-  "refundId": 78901,
-  "paymentId": 67890,
-  "amount": 10000,
-  "status": "COMPLETED",
-  "reason": "주문 취소",
-  "refundedAt": "2024-01-20T11:00:00"
+  "paymentId": 2001,
+  "status": "CANCELLED",
+  "cancelledAt": "2024-01-20T11:00:00Z",
+  "cancelReason": "고객 요청으로 인한 취소"
 }
 ```
-
----
 
 ## 에러 코드
 
-### HTTP Status Codes
-- `200 OK`: 성공
-- `201 Created`: 리소스 생성 성공
-- `400 Bad Request`: 잘못된 요청
-- `401 Unauthorized`: 인증 실패
-- `403 Forbidden`: 권한 없음
-- `404 Not Found`: 리소스를 찾을 수 없음
-- `409 Conflict`: 충돌 (예: 재고 부족)
-- `500 Internal Server Error`: 서버 오류
+### 공통 에러 코드
+| 코드 | 설명 | HTTP 상태 |
+|------|------|-----------|
+| `INVALID_REQUEST` | 잘못된 요청 형식 | 400 |
+| `RESOURCE_NOT_FOUND` | 리소스를 찾을 수 없음 | 404 |
+| `INTERNAL_ERROR` | 서버 내부 오류 | 500 |
+| `SERVICE_UNAVAILABLE` | 서비스 일시 중단 | 503 |
 
-### 비즈니스 에러 코드
+### Member Service 에러 코드
+| 코드 | 설명 | HTTP 상태 |
+|------|------|-----------|
+| `MEMBER_NOT_FOUND` | 회원을 찾을 수 없음 | 404 |
+| `EMAIL_ALREADY_EXISTS` | 이미 존재하는 이메일 | 409 |
+| `INVALID_PHONE_NUMBER` | 잘못된 전화번호 형식 | 400 |
 
-#### Order Service
-- `ORDER_001`: 회원을 찾을 수 없습니다
-- `ORDER_002`: 상품을 찾을 수 없습니다
-- `ORDER_003`: 재고가 부족합니다
-- `ORDER_004`: 잘못된 결제 방법입니다
-- `ORDER_005`: 포인트가 부족합니다
-- `ORDER_006`: 쿠폰은 단독 결제가 불가능합니다
-- `ORDER_007`: BNPL은 복합 결제가 불가능합니다
-- `ORDER_008`: 주문을 찾을 수 없습니다
-- `ORDER_009`: 취소 불가능한 상태입니다
+### Product Service 에러 코드
+| 코드 | 설명 | HTTP 상태 |
+|------|------|-----------|
+| `PRODUCT_NOT_FOUND` | 상품을 찾을 수 없음 | 404 |
+| `INSUFFICIENT_STOCK` | 재고 부족 | 400 |
+| `INVALID_PRICE` | 잘못된 가격 | 400 |
 
-#### Payment Service
-- `PAY_001`: 결제 처리 실패
-- `PAY_002`: PG 승인 실패
-- `PAY_003`: BNPL 신용 평가 실패
-- `PAY_004`: 이미 처리된 결제입니다
-- `PAY_005`: 환불 처리 실패
-- `PAY_006`: 환불 가능 기간이 지났습니다
+### Order Service 에러 코드
+| 코드 | 설명 | HTTP 상태 |
+|------|------|-----------|
+| `ORDER_NOT_FOUND` | 주문을 찾을 수 없음 | 404 |
+| `INVALID_ORDER_STATUS` | 잘못된 주문 상태 | 400 |
+| `MEMBER_SERVICE_ERROR` | 회원 서비스 오류 | 502 |
+| `PRODUCT_SERVICE_ERROR` | 상품 서비스 오류 | 502 |
 
-#### Point Service
-- `POINT_001`: 포인트 잔액이 부족합니다
-- `POINT_002`: 유효하지 않은 포인트 금액입니다
-- `POINT_003`: 회원을 찾을 수 없습니다
-- `POINT_004`: 중복된 거래입니다
+### Payment Service 에러 코드
+| 코드 | 설명 | HTTP 상태 |
+|------|------|-----------|
+| `PAYMENT_NOT_FOUND` | 결제 정보를 찾을 수 없음 | 404 |
+| `PAYMENT_FAILED` | 결제 실패 | 400 |
+| `INVALID_PAYMENT_METHOD` | 잘못된 결제 수단 | 400 |
+| `INSUFFICIENT_POINT` | 포인트 부족 | 400 |
+| `INVALID_COUPON` | 유효하지 않은 쿠폰 | 400 |
+| `COMPOSITE_PAYMENT_ERROR` | 복합결제 오류 | 400 |
 
-### 에러 응답 예시
-```json
-{
-  "error": "재고가 부족합니다",
-  "code": "ORDER_003",
-  "details": {
-    "productId": 1,
-    "requestedQuantity": 10,
-    "availableStock": 5
-  },
-  "timestamp": "2024-01-20T10:00:00"
+## gRPC API
+
+### Member Service gRPC
+
+**Proto 파일**: `common/src/main/proto/member.proto`
+
+#### 1. GetMember
+회원 정보를 조회합니다.
+
+**Request**
+```protobuf
+message GetMemberRequest {
+  int64 member_id = 1;
 }
 ```
 
----
+**Response**
+```protobuf
+message MemberResponse {
+  int64 id = 1;
+  string email = 2;
+  string name = 3;
+  string phone_number = 4;
+  int32 point = 5;
+}
+```
 
-## 테스트 시나리오
+#### 2. UpdateMemberPoint
+회원 포인트를 업데이트합니다.
 
-### 1. 정상 케이스
+**Request**
+```protobuf
+message UpdateMemberPointRequest {
+  int64 member_id = 1;
+  int32 point_change = 2;
+}
+```
 
-#### 1.1 PG 단독 결제
+**Response**
+```protobuf
+message MemberResponse {
+  // 위와 동일
+}
+```
+
+### Product Service gRPC
+
+**Proto 파일**: `common/src/main/proto/product.proto`
+
+#### 1. GetProduct
+상품 정보를 조회합니다.
+
+**Request**
+```protobuf
+message GetProductRequest {
+  int64 product_id = 1;
+}
+```
+
+**Response**
+```protobuf
+message ProductResponse {
+  int64 id = 1;
+  string name = 2;
+  int64 price = 3;
+  int32 stock = 4;
+  string seller_id = 5;
+}
+```
+
+#### 2. GetProductList
+여러 상품 정보를 조회합니다.
+
+**Request**
+```protobuf
+message GetProductListRequest {
+  repeated int64 product_ids = 1;
+}
+```
+
+**Response**
+```protobuf
+message ProductListResponse {
+  repeated ProductResponse products = 1;
+}
+```
+
+#### 3. UpdateStock
+상품 재고를 업데이트합니다.
+
+**Request**
+```protobuf
+message UpdateStockRequest {
+  int64 product_id = 1;
+  int32 quantity_change = 2;
+}
+```
+
+**Response**
+```protobuf
+message ProductResponse {
+  // 위와 동일
+}
+```
+
+## 사용 예시
+
+### 전체 주문 플로우 예시
+
+1. **회원 생성**
 ```bash
-# 1. 회원 생성
 curl -X POST http://localhost:8081/api/members \
   -H "Content-Type: application/json" \
-  -d '{"email":"pg.test@example.com","name":"PG테스트","phoneNumber":"010-1111-1111"}'
-
-# 2. 주문 생성
-curl -X POST http://localhost:8083/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"memberId":1,"items":[{"productId":1,"quantity":2}],"paymentMethod":"PG_KPN"}'
-```
-
-#### 1.2 포인트 단독 결제
-```bash
-# 1. 포인트 충전
-curl -X POST http://localhost:8085/api/points/charge \
-  -H "Content-Type: application/json" \
-  -d '{"memberId":1,"amount":50000,"description":"테스트 충전"}'
-
-# 2. 포인트로 주문
-curl -X POST http://localhost:8083/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"memberId":1,"items":[{"productId":2,"quantity":1}],"paymentMethod":"POINT"}'
-```
-
-#### 1.3 복합 결제
-```bash
-# PG + 포인트 복합 결제
-curl -X POST http://localhost:8083/api/orders \
-  -H "Content-Type: application/json" \
   -d '{
-    "memberId": 1,
-    "items": [{"productId": 3, "quantity": 1}],
-    "compositePayment": {
-      "details": [
-        {"method": "POINT", "amount": 5000},
-        {"method": "PG_KPN", "amount": 5000}
-      ]
-    }
+    "email": "test@example.com",
+    "name": "테스트 사용자",
+    "phoneNumber": "010-1234-5678"
   }'
 ```
 
-### 2. 실패 케이스
-
-#### 2.1 포인트 부족
+2. **상품 조회**
 ```bash
-curl -X POST http://localhost:8083/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"memberId":1,"items":[{"productId":4,"quantity":10}],"paymentMethod":"POINT"}'
+curl http://localhost:8082/api/products
 ```
 
-#### 2.2 쿠폰 단독 결제 시도
-```bash
-curl -X POST http://localhost:8083/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{"memberId":1,"items":[{"productId":1,"quantity":1}],"paymentMethod":"COUPON"}'
-```
-
-#### 2.3 BNPL 복합 결제 시도
+3. **주문 생성**
 ```bash
 curl -X POST http://localhost:8083/api/orders \
   -H "Content-Type: application/json" \
   -d '{
     "memberId": 1,
-    "items": [{"productId": 2, "quantity": 1}],
-    "compositePayment": {
-      "details": [
-        {"method": "BNPL", "amount": 3000},
-        {"method": "POINT", "amount": 2000}
-      ]
-    }
+    "items": [
+      {
+        "productId": 1,
+        "quantity": 2
+      }
+    ],
+    "paymentMethod": "PG_KPN"
   }'
 ```
+
+4. **결제 조회**
+```bash
+curl http://localhost:8084/api/payments/order/1001
+```
+
+### 복합결제 플로우 예시
+
+1. **포인트 충전 (테스트용)**
+```bash
+# Payment Service 내부에서만 가능
+# 실제로는 별도의 충전 API 필요
+```
+
+2. **복합결제 주문**
+```bash
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memberId": 1,
+    "items": [
+      {
+        "productId": 3,
+        "quantity": 1
+      }
+    ],
+    "paymentMethod": "COMPOSITE"
+  }'
+```
+
+## 주의사항
+
+1. **결제 수단별 제약사항**
+   - 쿠폰은 단독 결제 불가능
+   - BNPL은 복합결제에 포함 불가능
+   - 복합결제는 반드시 PG가 메인 결제수단이어야 함
+
+2. **트랜잭션 처리**
+   - 주문 생성과 결제는 별도 트랜잭션으로 처리
+   - 결제 실패 시 주문 상태는 FAILED로 변경
+   - 복합결제에서 일부 실패 시 전체 롤백
+
+3. **성능 고려사항**
+   - gRPC를 통한 서비스 간 통신으로 지연시간 최소화
+   - Kafka를 통한 비동기 이벤트 처리
+   - 재고 차감은 동기적으로 처리하여 데이터 일관성 보장
 
 ---
 
-## 추가 정보
-
-### Rate Limiting
-- 모든 API는 분당 1000회로 제한됩니다.
-- 초과 시 `429 Too Many Requests` 응답을 받습니다.
-
-### 인증
-- 현재 버전에서는 인증이 구현되어 있지 않습니다.
-- 실제 운영 환경에서는 JWT 토큰 기반 인증을 추가해야 합니다.
-
-### API 버전 관리
-- 현재 버전: v1
-- 향후 버전 업그레이드 시 URL에 버전을 포함할 예정입니다.
-  - 예: `/api/v2/orders`
+최종 업데이트: 2024년 1월 20일
