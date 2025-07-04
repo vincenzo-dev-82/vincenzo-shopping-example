@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Application Services
+  member-service:
+    build:
+      context: .
+      dockerfile: member-service/Dockerfile
+    container_name: shopping-member-service
+    ports:
+      - "8081:8081"
+      - "9090:9090"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shop?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      - mysql
+    networks:
+      - shopping-network
+    restart: unless-stopped
+
+  product-service:
+    build:
+      context: .
+      dockerfile: product-service/Dockerfile
+    container_name: shopping-product-service
+    ports:
+      - "8082:8082"
+      - "9091:9091"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shop?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      - mysql
+    networks:
+      - shopping-network
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    container_name: shopping-order-service
+    ports:
+      - "8083:8083"
+      - "9094:9094"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shop?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      GRPC_CLIENT_MEMBER-SERVICE_ADDRESS: member-service:9090
+      GRPC_CLIENT_PRODUCT-SERVICE_ADDRESS: product-service:9091
+    depends_on:
+      - mysql
+      - kafka
+      - member-service
+      - product-service
+    networks:
+      - shopping-network
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    container_name: shopping-payment-service
+    ports:
+      - "8084:8084"
+      - "9093:9093"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shop?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      GRPC_CLIENT_MEMBER-SERVICE_ADDRESS: member-service:9090
+    depends_on:
+      - mysql
+      - kafka
+      - member-service
+    networks:
+      - shopping-network
+    restart: unless-stopped
+
+networks:
+  shopping-network:
+    external: true
+    name: vincenzo-shopping-example_default
