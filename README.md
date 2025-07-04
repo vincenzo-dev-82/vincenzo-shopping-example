@@ -20,6 +20,7 @@
 - Apache Kafka
 - gRPC (서비스 간 통신)
 - Hexagonal Architecture
+- JUnit 5 & MockK (테스트)
 
 ## 실행 방법
 
@@ -53,7 +54,24 @@ gradle wrapper --gradle-version=8.5
 ./gradlew :point-service:build
 ```
 
-### 3. 서비스 실행
+### 3. 테스트 실행
+
+```bash
+# 전체 테스트 실행
+./gradlew test
+
+# 특정 서비스 테스트만 실행
+./gradlew :member-service:test
+./gradlew :product-service:test
+./gradlew :point-service:test
+./gradlew :order-service:test
+./gradlew :payment-service:test
+
+# 테스트 리포트 확인
+# 각 서비스의 build/reports/tests/test/index.html 파일 확인
+```
+
+### 4. 서비스 실행
 
 각 서비스를 별도의 터미널에서 실행:
 
@@ -74,7 +92,7 @@ gradle wrapper --gradle-version=8.5
 ./gradlew :payment-service:bootRun
 ```
 
-### 4. API 테스트
+### 5. API 테스트
 
 #### REST API 테스트
 ```bash
@@ -209,6 +227,25 @@ curl -X POST http://localhost:8083/api/orders \
     }
   }'
 ```
+
+## 테스트 구조
+
+### 단위 테스트 (Service Layer)
+- MockK를 사용한 의존성 모킹
+- 비즈니스 로직 검증
+- 예외 케이스 테스트
+
+### 통합 테스트 (Controller Layer)
+- MockMvc를 사용한 HTTP 엔드포인트 테스트
+- H2 인메모리 DB 사용
+- 실제 요청/응답 검증
+
+### 테스트 커버리지
+- Member Service: 회원 생성, 조회, 포인트 업데이트
+- Product Service: 상품 생성, 조회, 재고 업데이트
+- Point Service: 포인트 충전, 사용, 환불, 잔액 조회
+- Order Service: 주문 생성, 재고 검증, gRPC 통신
+- Payment Service: 결제 처리, 취소, 환불, 결제 제약사항 검증
 
 ## 결제 시스템 특징
 
