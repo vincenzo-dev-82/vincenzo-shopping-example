@@ -62,7 +62,7 @@ class OrderService(
                     amount = totalAmount
                 ))
             }
-            PaymentMethod.POINT -> {
+            PaymentMethod.CASHNOTE_POINT -> {
                 // 포인트 단독 결제 - 잔액 확인
                 val pointBalance = pointServiceGrpcClient.getBalance(request.memberId)
                     ?: throw IllegalStateException("포인트 잔액 조회 실패")
@@ -72,7 +72,7 @@ class OrderService(
                 }
                 
                 listOf(OrderPaymentDetail(
-                    method = PaymentMethod.POINT,
+                    method = PaymentMethod.CASHNOTE_POINT,
                     amount = totalAmount
                 ))
             }
