@@ -10,10 +10,10 @@ COPY gradle ./gradle
 COPY common ./common
 
 # Copy service source
-COPY member-service ./member-service
+COPY payment-service ./payment-service
 
 # Build the service
-RUN ./gradlew :member-service:build -x test
+RUN ./gradlew :payment-service:build -x test
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-alpine
@@ -28,7 +28,7 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy jar from build stage
-COPY --from=build /app/member-service/build/libs/*.jar app.jar
+COPY --from=build /app/payment-service/build/libs/*.jar app.jar
 
 # Change ownership
 RUN chown -R spring:spring /app
@@ -37,10 +37,10 @@ USER spring:spring
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8081/api/members/hello || exit 1
+  CMD curl -f http://localhost:8084/api/payments/hello || exit 1
 
 # Expose ports
-EXPOSE 8081 9090
+EXPOSE 8084 9093
 
 # JVM options for container environment
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0"
