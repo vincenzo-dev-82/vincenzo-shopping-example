@@ -5,17 +5,18 @@ import com.vincenzo.shopping.payment.application.port.`in`.ProcessPaymentCommand
 import com.vincenzo.shopping.payment.application.port.out.PaymentRepository
 import com.vincenzo.shopping.payment.application.service.PaymentService
 import com.vincenzo.shopping.payment.domain.*
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.mockito.Mockito.*
+import org.mockito.kotlin.any
+import org.mockito.kotlin.whenever
+import org.mockito.kotlin.verify as verifyKotlin
 
 class PaymentServiceTest {
 
-    private val paymentRepository: PaymentRepository = mockk()
-    private val paymentProcessor: PaymentProcessor = mockk()
+    private val paymentRepository: PaymentRepository = mock(PaymentRepository::class.java)
+    private val paymentProcessor: PaymentProcessor = mock(PaymentProcessor::class.java)
     private val paymentService = PaymentService(paymentRepository, listOf(paymentProcessor))
 
     @Test
@@ -57,9 +58,9 @@ class PaymentServiceTest {
             message = "결제 성공"
         )
 
-        every { paymentRepository.save(any()) } returns payment
-        every { paymentProcessor.supports(PaymentMethod.PG_KPN) } returns true
-        every { paymentProcessor.process(any()) } returns paymentResult
+        whenever(paymentRepository.save(any())).thenReturn(payment)
+        whenever(paymentProcessor.supports(PaymentMethod.PG_KPN)).thenReturn(true)
+        whenever(paymentProcessor.process(any())).thenReturn(paymentResult)
 
         // when
         val result = paymentService.processPayment(command)
@@ -69,12 +70,12 @@ class PaymentServiceTest {
         assertEquals(command.orderId, result.orderId)
         assertEquals(command.totalAmount, result.totalAmount)
         
-        verify(atLeast = 1) { paymentRepository.save(any()) }
-        verify(exactly = 1) { paymentProcessor.process(any()) }
+        verifyKotlin(paymentRepository, atLeast(1)).save(any())
+        verifyKotlin(paymentProcessor).process(any())
     }
 
     @Test
-    fun `결제 처리 실패 - 쟁번 단독 결제`() {
+    fun `결제 처리 실패 - 쿠폰 단독 결제`() {
         // given
         val command = ProcessPaymentCommand(
             orderId = 1L,
@@ -94,6 +95,6 @@ class PaymentServiceTest {
             paymentService.processPayment(command)
         }
         
-        verify(exactly = 0) { paymentRepository.save(any()) }
+        verifyKotlin(paymentRepository, never()).save(any())
     }
 }
