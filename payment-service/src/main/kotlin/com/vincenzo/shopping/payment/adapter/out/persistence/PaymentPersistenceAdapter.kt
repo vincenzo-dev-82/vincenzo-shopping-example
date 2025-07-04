@@ -2,6 +2,7 @@ package com.vincenzo.shopping.payment.adapter.out.persistence
 
 import com.vincenzo.shopping.payment.application.port.out.PaymentRepository
 import com.vincenzo.shopping.payment.domain.Payment
+import com.vincenzo.shopping.payment.domain.PaymentDetail
 import org.springframework.stereotype.Repository
 
 @Repository
@@ -16,7 +17,7 @@ class PaymentPersistenceAdapter(
             id = payment.id,
             orderId = payment.orderId,
             totalAmount = payment.totalAmount,
-            status = payment.status.name,
+            status = payment.status,
             createdAt = payment.createdAt,
             completedAt = payment.completedAt
         )
@@ -26,12 +27,12 @@ class PaymentPersistenceAdapter(
         val detailEntities = payment.paymentDetails.map { detail ->
             PaymentDetailEntity(
                 id = detail.id,
-                paymentId = savedPayment.id!!,
-                method = detail.method.name,
+                payment = savedPayment,
+                method = detail.method,
                 amount = detail.amount,
-                status = detail.status.name,
+                status = detail.status,
                 transactionId = detail.transactionId,
-                metadata = detail.metadata
+                metadata = detail.metadata.toMutableMap()
             )
         }
         val savedDetails = paymentDetailJpaRepository.saveAll(detailEntities)
@@ -50,4 +51,28 @@ class PaymentPersistenceAdapter(
         val detailEntities = paymentDetailJpaRepository.findByPaymentId(paymentEntity.id!!)
         return paymentEntity.toDomain(detailEntities)
     }
+}
+
+private fun PaymentEntity.toDomain(details: List<PaymentDetailEntity>): Payment {
+    return Payment(
+        id = this.id,
+        orderId = this.orderId,
+        paymentDetails = details.map { it.toDomain() },
+        totalAmount = this.totalAmount,
+        status = this.status,
+        createdAt = this.createdAt,
+        completedAt = this.completedAt
+    )
+}
+
+private fun PaymentDetailEntity.toDomain(): PaymentDetail {
+    return PaymentDetail(
+        id = this.id,
+        paymentId = this.payment?.id,
+        method = this.method,
+        amount = this.amount,
+        status = this.status,
+        transactionId = this.transactionId,
+        metadata = this.metadata.toMap()
+    )
 }
