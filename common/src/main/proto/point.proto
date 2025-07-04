@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.vincenzo.shopping.grpc.point";
+option java_outer_classname = "PointProto";
+
+package point;
+
+service PointService {
+  rpc GetBalance (GetBalanceRequest) returns (BalanceResponse);
+  rpc UsePoint (UsePointRequest) returns (TransactionResponse);
+  rpc ChargePoint (ChargePointRequest) returns (TransactionResponse);
+  rpc RefundPoint (RefundPointRequest) returns (TransactionResponse);
+}
+
+message GetBalanceRequest {
+  int64 member_id = 1;
+}
+
+message UsePointRequest {
+  int64 member_id = 1;
+  int32 amount = 2;
+  string description = 3;
+  string reference_id = 4;
+}
+
+message ChargePointRequest {
+  int64 member_id = 1;
+  int32 amount = 2;
+  string description = 3;
+}
+
+message RefundPointRequest {
+  int64 member_id = 1;
+  int32 amount = 2;
+  string description = 3;
+  string reference_id = 4;
+}
+
+message BalanceResponse {
+  int64 member_id = 1;
+  int32 balance = 2;
+  string updated_at = 3;
+}
+
+message TransactionResponse {
+  int64 id = 1;
+  int64 member_id = 2;
+  int32 amount = 3;
+  string type = 4;
+  string description = 5;
+  string reference_id = 6;
+  string created_at = 7;
+}
