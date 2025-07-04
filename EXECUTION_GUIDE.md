@@ -5,7 +5,6 @@
 ### 필수 설치 프로그램
 - JDK 17 이상
 - Docker & Docker Compose
-- Git
 
 ### 권장 개발 도구
 - IntelliJ IDEA (Community/Ultimate)
@@ -14,13 +13,7 @@
 
 ## 프로젝트 설정
 
-### 1. 소스코드 다운로드
-```bash
-git clone https://github.com/vincenzo-dev-82/vincenzo-shopping-example.git
-cd vincenzo-shopping-example
-```
-
-### 2. Gradle Wrapper 설정
+### Gradle Wrapper 설정
 ```bash
 # Windows
 gradlew.bat wrapper --gradle-version=8.5
