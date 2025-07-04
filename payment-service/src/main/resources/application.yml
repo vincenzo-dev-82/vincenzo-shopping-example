@@ -33,3 +33,6 @@ grpc:
     member-service:
       address: localhost:9090
       negotiation-type: plaintext
+    point-service:
+      address: localhost:9095
+      negotiation-type: plaintext
