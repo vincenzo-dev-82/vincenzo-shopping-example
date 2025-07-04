@@ -25,7 +25,7 @@ class PaymentService(
     private val processorMap: Map<PaymentMethod, PaymentProcessor> = 
         paymentProcessors.associateBy { it.getSupportedMethod() }
     
-    override suspend fun processPayment(command: ProcessPaymentCommand): Payment {
+    override fun processPayment(command: ProcessPaymentCommand): Payment = runBlocking {
         println("[PaymentService] 결제 처리 시작 - 주문: ${command.orderId}")
         
         // 결제 방법 결정 (단일 결제 or 복합 결제)
@@ -47,7 +47,7 @@ class PaymentService(
                     method = detail.method,
                     amount = detail.amount,
                     status = PaymentDetailStatus.PENDING,
-                    metadata = detail.metadata
+                    metadata = detail.metadata.mapValues { it.value.toString() }
                 )
             }
         )
@@ -64,7 +64,7 @@ class PaymentService(
             // 결제 완료 이벤트 발행
             publishPaymentEvent(processedPayment)
             
-            return processedPayment
+            processedPayment
         } catch (e: Exception) {
             println("[PaymentService] 결제 실패: ${e.message}")
             // 실패 처리
@@ -90,7 +90,7 @@ class PaymentService(
         val validationResult = processor.validate(
             memberId = payment.memberId,
             amount = detailCommand.amount,
-            metadata = detailCommand.metadata
+            metadata = detailCommand.metadata.mapValues { it.value.toString() }
         )
         
         if (!validationResult.isValid) {
@@ -102,7 +102,7 @@ class PaymentService(
             orderId = payment.orderId,
             memberId = payment.memberId,
             amount = detailCommand.amount,
-            metadata = detailCommand.metadata
+            metadata = detailCommand.metadata.mapValues { it.value.toString() }
         )
         
         if (!result.success) {
@@ -159,7 +159,7 @@ class PaymentService(
                     orderId = payment.orderId,
                     memberId = payment.memberId,
                     amount = subDetail.amount,
-                    metadata = subDetail.metadata
+                    metadata = subDetail.metadata.mapValues { it.value.toString() }
                 )
                 
                 if (!result.success) {
@@ -172,7 +172,7 @@ class PaymentService(
                         amount = subDetail.amount,
                         status = PaymentDetailStatus.SUCCESS,
                         transactionId = result.transactionId,
-                        metadata = subDetail.metadata
+                        metadata = subDetail.metadata.mapValues { it.value.toString() }
                     )
                 )
             }
@@ -183,7 +183,7 @@ class PaymentService(
                 orderId = payment.orderId,
                 memberId = payment.memberId,
                 amount = mainMethod.amount,
-                metadata = mainMethod.metadata
+                metadata = mainMethod.metadata.mapValues { it.value.toString() }
             )
             
             if (!mainResult.success) {
@@ -198,7 +198,7 @@ class PaymentService(
                     amount = mainMethod.amount,
                     status = PaymentDetailStatus.SUCCESS,
                     transactionId = mainResult.transactionId,
-                    metadata = mainMethod.metadata
+                    metadata = mainMethod.metadata.mapValues { it.value.toString() }
                 )
             )
             
@@ -252,7 +252,7 @@ class PaymentService(
     
     // GetPaymentQuery 구현
     @Transactional(readOnly = true)
-    override fun getPaymentById(paymentId: Long): Payment? {
+    override fun getPayment(paymentId: Long): Payment? {
         return paymentRepository.findById(paymentId)
     }
     

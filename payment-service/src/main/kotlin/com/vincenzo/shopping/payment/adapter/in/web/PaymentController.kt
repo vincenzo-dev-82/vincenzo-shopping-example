@@ -24,14 +24,14 @@ class PaymentController(
             val mainDetail = PaymentDetailCommand(
                 method = PaymentMethod.valueOf(request.compositeDetails.mainMethod),
                 amount = request.compositeDetails.mainAmount,
-                metadata = request.compositeDetails.mainMetadata
+                metadata = request.compositeDetails.mainMetadata.mapValues { it.value.toString() }
             )
             
             val subDetails = request.compositeDetails.subPayments.map { sub ->
                 PaymentDetailCommand(
                     method = PaymentMethod.valueOf(sub.method),
                     amount = sub.amount,
-                    metadata = sub.metadata
+                    metadata = sub.metadata.mapValues { it.value.toString() }
                 )
             }
             
@@ -42,7 +42,7 @@ class PaymentController(
                 PaymentDetailCommand(
                     method = PaymentMethod.valueOf(request.paymentMethod),
                     amount = request.totalAmount,
-                    metadata = request.metadata
+                    metadata = request.metadata.mapValues { it.value.toString() }
                 )
             )
         }
@@ -65,7 +65,7 @@ class PaymentController(
     
     @PostMapping("/test")
     @ResponseStatus(HttpStatus.CREATED)
-    fun testPayment(@RequestBody request: TestPaymentRequest): Any = runBlocking {
+    fun testPayment(@RequestBody request: TestPaymentRequest): Map<String, Any> = runBlocking {
         println("테스트 결제 요청: $request")
         
         // 간단한 테스트용 결제 처리
@@ -79,7 +79,7 @@ class PaymentController(
                     amount = request.amount,
                     metadata = when (request.method) {
                         "COUPON" -> mapOf("couponCode" to "WELCOME10")
-                        "BNPL" -> mapOf("installmentMonths" to 3)
+                        "BNPL" -> mapOf("installmentMonths" to "3")
                         else -> emptyMap()
                     }
                 )
@@ -91,13 +91,13 @@ class PaymentController(
             mapOf(
                 "success" to (payment.status == PaymentStatus.COMPLETED),
                 "paymentId" to payment.id,
-                "status" to payment.status,
+                "status" to payment.status.toString(),
                 "details" to payment.paymentDetails
             )
         } catch (e: Exception) {
             mapOf(
                 "success" to false,
-                "error" to e.message
+                "error" to (e.message ?: "Unknown error")
             )
         }
     }

@@ -1,11 +1,11 @@
 package com.vincenzo.shopping.payment.adapter.out.processor
 
 import com.vincenzo.shopping.payment.adapter.out.grpc.PointServiceGrpcClient
+import com.vincenzo.shopping.payment.application.processor.PaymentProcessor
+import com.vincenzo.shopping.payment.application.processor.PaymentResult
+import com.vincenzo.shopping.payment.application.processor.ValidationResult
 import com.vincenzo.shopping.payment.domain.PaymentDetail
 import com.vincenzo.shopping.payment.domain.PaymentMethod
-import com.vincenzo.shopping.payment.domain.PaymentProcessor
-import com.vincenzo.shopping.payment.domain.PaymentResult
-import kotlinx.coroutines.runBlocking
 import org.springframework.stereotype.Component
 import java.util.UUID
 
@@ -14,30 +14,25 @@ class PointPaymentProcessor(
     private val pointServiceGrpcClient: PointServiceGrpcClient
 ) : PaymentProcessor {
     
-    override fun process(paymentDetail: PaymentDetail): PaymentResult = runBlocking {
-        val memberId = paymentDetail.metadata["member_id"]?.toLong()
-            ?: return@runBlocking PaymentResult(
-                success = false,
-                message = "회원 ID가 없습니다."
-            )
-        
-        val orderId = paymentDetail.metadata["order_id"]
-            ?: return@runBlocking PaymentResult(
-                success = false,
-                message = "주문 ID가 없습니다."
-            )
-        
-        println("포인트 결제 처리: 회원 $memberId, ${paymentDetail.amount}포인트")
+    override fun getSupportedMethod(): PaymentMethod = PaymentMethod.CASHNOTE_POINT
+    
+    override suspend fun process(
+        orderId: Long,
+        memberId: Long,
+        amount: Long,
+        metadata: Map<String, Any>
+    ): PaymentResult {
+        println("포인트 결제 처리: 회원 $memberId, $amount 포인트")
         
         // 포인트 잔액 확인
         val balance = pointServiceGrpcClient.getBalance(memberId)
-            ?: return@runBlocking PaymentResult(
+            ?: return PaymentResult(
                 success = false,
                 message = "포인트 잔액 조회 실패"
             )
         
-        if (balance < paymentDetail.amount) {
-            return@runBlocking PaymentResult(
+        if (balance < amount) {
+            return PaymentResult(
                 success = false,
                 message = "포인트가 부족합니다. 현재 잔액: $balance"
             )
@@ -46,18 +41,19 @@ class PointPaymentProcessor(
         // 포인트 사용
         val success = pointServiceGrpcClient.usePoint(
             memberId = memberId,
-            amount = paymentDetail.amount.toInt(),
+            amount = amount.toInt(),
             description = "주문 결제: $orderId",
-            referenceId = orderId
+            referenceId = orderId.toString()
         )
         
-        if (success) {
+        return if (success) {
             PaymentResult(
                 success = true,
                 transactionId = "POINT_${UUID.randomUUID()}",
                 message = "포인트 결제 성공",
+                processedAmount = amount,
                 metadata = mapOf(
-                    "remaining_balance" to (balance - paymentDetail.amount).toString()
+                    "remaining_balance" to (balance - amount)
                 )
             )
         } else {
@@ -68,33 +64,37 @@ class PointPaymentProcessor(
         }
     }
     
-    override fun cancel(paymentDetail: PaymentDetail): PaymentResult = runBlocking {
-        val memberId = paymentDetail.metadata["member_id"]?.toLong()
-            ?: return@runBlocking PaymentResult(
+    override suspend fun cancel(
+        paymentDetail: PaymentDetail,
+        reason: String
+    ): PaymentResult {
+        val memberId = paymentDetail.metadata["memberId"]?.toString()?.toLong()
+            ?: return PaymentResult(
                 success = false,
                 message = "회원 ID가 없습니다."
             )
         
-        val orderId = paymentDetail.metadata["order_id"]
-            ?: return@runBlocking PaymentResult(
+        val orderId = paymentDetail.metadata["orderId"]?.toString()?.toLong()
+            ?: return PaymentResult(
                 success = false,
                 message = "주문 ID가 없습니다."
             )
         
-        println("포인트 결제 취소: ${paymentDetail.transactionId}")
+        println("포인트 결제 취소: ${paymentDetail.transactionId}, 사유: $reason")
         
         val success = pointServiceGrpcClient.refundPoint(
             memberId = memberId,
             amount = paymentDetail.amount.toInt(),
-            description = "주문 취소: $orderId",
-            referenceId = orderId
+            description = "주문 취소: $orderId - $reason",
+            referenceId = orderId.toString()
         )
         
-        if (success) {
+        return if (success) {
             PaymentResult(
                 success = true,
                 transactionId = "POINT_CANCEL_${UUID.randomUUID()}",
-                message = "포인트 결제 취소 성공"
+                message = "포인트 결제 취소 성공",
+                processedAmount = paymentDetail.amount
             )
         } else {
             PaymentResult(
@@ -104,44 +104,30 @@ class PointPaymentProcessor(
         }
     }
     
-    override fun refund(paymentDetail: PaymentDetail, refundAmount: Long): PaymentResult = runBlocking {
-        val memberId = paymentDetail.metadata["member_id"]?.toLong()
-            ?: return@runBlocking PaymentResult(
-                success = false,
-                message = "회원 ID가 없습니다."
+    override suspend fun validate(
+        memberId: Long,
+        amount: Long,
+        metadata: Map<String, Any>
+    ): ValidationResult {
+        println("포인트 결제 검증: 회원 $memberId, $amount 포인트")
+        
+        val balance = pointServiceGrpcClient.getBalance(memberId)
+            ?: return ValidationResult(
+                isValid = false,
+                message = "포인트 잔액 조회 실패"
             )
         
-        val orderId = paymentDetail.metadata["order_id"]
-            ?: return@runBlocking PaymentResult(
-                success = false,
-                message = "주문 ID가 없습니다."
-            )
-        
-        println("포인트 환불 처리: ${refundAmount}포인트")
-        
-        val success = pointServiceGrpcClient.refundPoint(
-            memberId = memberId,
-            amount = refundAmount.toInt(),
-            description = "부분 환불: $orderId",
-            referenceId = orderId
-        )
-        
-        if (success) {
-            PaymentResult(
-                success = true,
-                transactionId = "POINT_REFUND_${UUID.randomUUID()}",
-                message = "포인트 환불 성공",
-                metadata = mapOf("refund_amount" to refundAmount.toString())
+        return if (balance >= amount) {
+            ValidationResult(
+                isValid = true,
+                availableAmount = balance
             )
         } else {
-            PaymentResult(
-                success = false,
-                message = "포인트 환불 처리 실패"
+            ValidationResult(
+                isValid = false,
+                message = "포인트가 부족합니다. 현재 잔액: $balance, 필요: $amount",
+                availableAmount = balance
             )
         }
-    }
-    
-    override fun supports(method: PaymentMethod): Boolean {
-        return method == PaymentMethod.POINT
     }
 }

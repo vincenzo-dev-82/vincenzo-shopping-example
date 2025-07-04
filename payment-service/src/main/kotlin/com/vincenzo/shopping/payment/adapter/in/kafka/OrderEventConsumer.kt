@@ -73,7 +73,7 @@ class OrderEventConsumer(
                     PaymentDetailCommand(
                         method = PaymentMethod.BNPL,
                         amount = totalAmount,
-                        metadata = mapOf("installmentMonths" to 3)
+                        metadata = mapOf("installmentMonths" to "3")
                     )
                 )
             }

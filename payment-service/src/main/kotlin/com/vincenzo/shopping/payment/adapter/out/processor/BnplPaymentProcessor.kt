@@ -1,9 +1,10 @@
 package com.vincenzo.shopping.payment.adapter.out.processor
 
+import com.vincenzo.shopping.payment.application.processor.PaymentProcessor
+import com.vincenzo.shopping.payment.application.processor.PaymentResult
+import com.vincenzo.shopping.payment.application.processor.ValidationResult
 import com.vincenzo.shopping.payment.domain.PaymentDetail
 import com.vincenzo.shopping.payment.domain.PaymentMethod
-import com.vincenzo.shopping.payment.domain.PaymentProcessor
-import com.vincenzo.shopping.payment.domain.PaymentResult
 import org.springframework.stereotype.Component
 import java.util.UUID
 import kotlin.random.Random
@@ -11,68 +12,72 @@ import kotlin.random.Random
 @Component
 class BnplPaymentProcessor : PaymentProcessor {
     
-    override fun process(paymentDetail: PaymentDetail): PaymentResult {
-        val memberId = paymentDetail.metadata["member_id"]
-            ?: return PaymentResult(
-                success = false,
-                message = "회원 ID가 없습니다."
-            )
+    override fun getSupportedMethod(): PaymentMethod = PaymentMethod.BNPL
+    
+    override suspend fun process(
+        orderId: Long,
+        memberId: Long,
+        amount: Long,
+        metadata: Map<String, Any>
+    ): PaymentResult {
+        println("BNPL 결제 처리: 회원 $memberId, $amount 원")
         
-        println("BNPL 결제 처리: 회원 $memberId, ${paymentDetail.amount}원")
+        // BNPL 한도 체크 시뮬레이션
+        val creditLimit = metadata["creditLimit"]?.toString()?.toLongOrNull() ?: 1000000L
         
-        // Mock BNPL 신용 평가 (80% 승인율)
-        val creditCheck = performCreditCheck(memberId.toLong(), paymentDetail.amount)
-        
-        return if (creditCheck) {
+        return if (amount <= creditLimit && Random.nextDouble() < 0.85) {
             PaymentResult(
                 success = true,
                 transactionId = "BNPL_${UUID.randomUUID()}",
                 message = "BNPL 결제 승인",
+                processedAmount = amount,
                 metadata = mapOf(
-                    "credit_limit" to "1000000",
-                    "installment_months" to "3",
-                    "monthly_payment" to (paymentDetail.amount / 3).toString()
+                    "approval_number" to UUID.randomUUID().toString().substring(0, 8),
+                    "due_date" to "2024-03-31"
                 )
             )
         } else {
             PaymentResult(
                 success = false,
-                message = "BNPL 신용 평가 실패: 한도 초과"
+                message = "BNPL 결제 거절: 신용 한도 초과",
+                metadata = mapOf("available_limit" to creditLimit)
             )
         }
     }
     
-    override fun cancel(paymentDetail: PaymentDetail): PaymentResult {
-        println("BNPL 결제 취소: ${paymentDetail.transactionId}")
+    override suspend fun cancel(
+        paymentDetail: PaymentDetail,
+        reason: String
+    ): PaymentResult {
+        println("BNPL 결제 취소: ${paymentDetail.transactionId}, 사유: $reason")
         
         return PaymentResult(
             success = true,
             transactionId = "BNPL_CANCEL_${UUID.randomUUID()}",
-            message = "BNPL 결제 취소 성공"
+            message = "BNPL 결제 취소 성공",
+            processedAmount = paymentDetail.amount
         )
     }
     
-    override fun refund(paymentDetail: PaymentDetail, refundAmount: Long): PaymentResult {
-        println("BNPL 환불 처리: ${refundAmount}원")
+    override suspend fun validate(
+        memberId: Long,
+        amount: Long,
+        metadata: Map<String, Any>
+    ): ValidationResult {
+        val creditLimit = metadata["creditLimit"]?.toString()?.toLongOrNull() ?: 1000000L
         
-        return PaymentResult(
-            success = true,
-            transactionId = "BNPL_REFUND_${UUID.randomUUID()}",
-            message = "BNPL 환불 성공",
-            metadata = mapOf(
-                "refund_amount" to refundAmount.toString(),
-                "adjusted_installment" to ((paymentDetail.amount - refundAmount) / 3).toString()
+        return if (amount <= creditLimit) {
+            ValidationResult(
+                isValid = true,
+                message = "BNPL 결제 가능",
+                availableAmount = creditLimit
             )
-        )
-    }
-    
-    override fun supports(method: PaymentMethod): Boolean {
-        return method == PaymentMethod.BNPL
-    }
-    
-    private fun performCreditCheck(memberId: Long, amount: Long): Boolean {
-        // Mock 신용 평가 로직
-        // 실제로는 외부 BNPL 서비스 API 호출
-        return Random.nextDouble() < 0.8 && amount <= 1000000
+        } else {
+            ValidationResult(
+                isValid = false,
+                message = "BNPL 한도 초과",
+                availableAmount = creditLimit
+            )
+        }
     }
 }
