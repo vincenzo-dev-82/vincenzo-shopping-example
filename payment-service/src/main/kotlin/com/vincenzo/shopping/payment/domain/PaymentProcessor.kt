@@ -1,16 +1,13 @@
 package com.vincenzo.shopping.payment.domain
 
-// 결제 프로세서 인터페이스
-interface PaymentProcessor {
-    fun supports(method: PaymentMethod): Boolean
-    fun process(paymentDetail: PaymentDetail): PaymentResult
-    fun cancel(paymentDetail: PaymentDetail): PaymentResult
-    fun refund(paymentDetail: PaymentDetail, refundAmount: Long): PaymentResult
-}
+import com.vincenzo.shopping.payment.application.processor.PaymentProcessor
+import com.vincenzo.shopping.payment.application.processor.PaymentResult
+import com.vincenzo.shopping.payment.application.processor.ValidationResult
 
-data class PaymentResult(
-    val success: Boolean,
-    val transactionId: String? = null,
-    val message: String? = null,
-    val metadata: Map<String, String> = emptyMap()
-)
+/**
+ * Domain에서 사용하는 PaymentProcessor 인터페이스
+ * application.processor.PaymentProcessor를 상속받아 도메인 레이어에서도 사용
+ */
+interface PaymentProcessor : com.vincenzo.shopping.payment.application.processor.PaymentProcessor
+
+// PaymentResult와 ValidationResult는 application.processor에서 import해서 사용
