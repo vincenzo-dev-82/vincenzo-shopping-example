@@ -120,13 +120,13 @@ class PointPaymentProcessor(
         return if (balance >= amount) {
             ValidationResult(
                 isValid = true,
-                availableAmount = balance
+                availableAmount = balance.toLong()
             )
         } else {
             ValidationResult(
                 isValid = false,
                 message = "포인트가 부족합니다. 현재 잔액: $balance, 필요: $amount",
-                availableAmount = balance
+                availableAmount = balance.toLong()
             )
         }
     }
