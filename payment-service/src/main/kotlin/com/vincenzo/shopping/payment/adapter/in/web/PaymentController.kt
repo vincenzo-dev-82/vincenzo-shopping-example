@@ -1,9 +1,8 @@
 package com.vincenzo.shopping.payment.adapter.`in`.web
 
+import com.vincenzo.shopping.payment.application.port.`in`.PaymentDetailCommand
 import com.vincenzo.shopping.payment.application.port.`in`.ProcessPaymentCommand
 import com.vincenzo.shopping.payment.application.port.`in`.ProcessPaymentUseCase
-import com.vincenzo.shopping.payment.application.processor.CompositePaymentPlan
-import com.vincenzo.shopping.payment.application.processor.SubPayment
 import com.vincenzo.shopping.payment.domain.Payment
 import com.vincenzo.shopping.payment.domain.PaymentMethod
 import com.vincenzo.shopping.payment.domain.PaymentStatus
@@ -20,18 +19,38 @@ class PaymentController(
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun processPayment(@RequestBody request: PaymentRequest): PaymentResponse = runBlocking {
-        val paymentDetails = when (request.paymentMethod) {
-            "COMPOSITE" -> buildCompositePaymentDetails(request)
-            "BNPL" -> mapOf("installmentMonths" to (request.installmentMonths ?: 1))
-            "COUPON" -> mapOf("couponCode" to (request.couponCode ?: ""))
-            else -> request.metadata
+        val paymentDetails = if (request.paymentMethod == "COMPOSITE" && request.compositeDetails != null) {
+            // 복합결제
+            val mainDetail = PaymentDetailCommand(
+                method = PaymentMethod.valueOf(request.compositeDetails.mainMethod),
+                amount = request.compositeDetails.mainAmount,
+                metadata = request.compositeDetails.mainMetadata
+            )
+            
+            val subDetails = request.compositeDetails.subPayments.map { sub ->
+                PaymentDetailCommand(
+                    method = PaymentMethod.valueOf(sub.method),
+                    amount = sub.amount,
+                    metadata = sub.metadata
+                )
+            }
+            
+            listOf(mainDetail) + subDetails
+        } else {
+            // 단일 결제
+            listOf(
+                PaymentDetailCommand(
+                    method = PaymentMethod.valueOf(request.paymentMethod),
+                    amount = request.totalAmount,
+                    metadata = request.metadata
+                )
+            )
         }
         
         val command = ProcessPaymentCommand(
             orderId = request.orderId,
             memberId = request.memberId,
             totalAmount = request.totalAmount,
-            paymentMethod = request.paymentMethod,
             paymentDetails = paymentDetails
         )
         
@@ -54,12 +73,17 @@ class PaymentController(
             orderId = request.orderId,
             memberId = request.memberId,
             totalAmount = request.amount,
-            paymentMethod = request.method,
-            paymentDetails = when (request.method) {
-                "COUPON" -> mapOf("couponCode" to "WELCOME10")
-                "BNPL" -> mapOf("installmentMonths" to 3)
-                else -> emptyMap()
-            }
+            paymentDetails = listOf(
+                PaymentDetailCommand(
+                    method = PaymentMethod.valueOf(request.method),
+                    amount = request.amount,
+                    metadata = when (request.method) {
+                        "COUPON" -> mapOf("couponCode" to "WELCOME10")
+                        "BNPL" -> mapOf("installmentMonths" to 3)
+                        else -> emptyMap()
+                    }
+                )
+            )
         )
         
         try {
@@ -68,7 +92,7 @@ class PaymentController(
                 "success" to (payment.status == PaymentStatus.COMPLETED),
                 "paymentId" to payment.id,
                 "status" to payment.status,
-                "details" to payment.details
+                "details" to payment.paymentDetails
             )
         } catch (e: Exception) {
             mapOf(
@@ -76,28 +100,6 @@ class PaymentController(
                 "error" to e.message
             )
         }
-    }
-    
-    private fun buildCompositePaymentDetails(request: PaymentRequest): Map<String, Any> {
-        val compositeDetails = request.compositeDetails
-            ?: throw IllegalArgumentException("복합결제는 상세 정보가 필요합니다.")
-        
-        val subPayments = compositeDetails.subPayments.map { sub ->
-            SubPayment(
-                method = PaymentMethod.valueOf(sub.method),
-                amount = sub.amount,
-                metadata = sub.metadata
-            )
-        }
-        
-        return mapOf(
-            "paymentPlan" to CompositePaymentPlan(
-                mainMethod = PaymentMethod.valueOf(compositeDetails.mainMethod),
-                mainAmount = compositeDetails.mainAmount,
-                mainMetadata = compositeDetails.mainMetadata,
-                subPayments = subPayments
-            )
-        )
     }
 }
 
@@ -151,7 +153,7 @@ data class PaymentResponse(
                 totalAmount = payment.totalAmount,
                 paymentMethod = payment.paymentMethod.name,
                 status = payment.status.name,
-                details = payment.details.map { detail ->
+                details = payment.paymentDetails.map { detail ->
                     PaymentDetailResponse(
                         method = detail.method.name,
                         amount = detail.amount,
@@ -160,7 +162,7 @@ data class PaymentResponse(
                 },
                 message = when (payment.status) {
                     PaymentStatus.FAILED -> 
-                        payment.details.firstOrNull()?.metadata?.get("failureReason") as? String
+                        payment.paymentDetails.firstOrNull()?.metadata?.get("failureReason") as? String
                     else -> null
                 }
             )

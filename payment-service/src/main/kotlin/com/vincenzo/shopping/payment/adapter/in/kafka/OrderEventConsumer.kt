@@ -4,10 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.vincenzo.shopping.common.kafka.KafkaMessage
 import com.vincenzo.shopping.common.kafka.KafkaTopics
+import com.vincenzo.shopping.payment.application.port.`in`.PaymentDetailCommand
 import com.vincenzo.shopping.payment.application.port.`in`.ProcessPaymentCommand
 import com.vincenzo.shopping.payment.application.port.`in`.ProcessPaymentUseCase
-import com.vincenzo.shopping.payment.application.processor.CompositePaymentPlan
-import com.vincenzo.shopping.payment.application.processor.SubPayment
 import com.vincenzo.shopping.payment.domain.PaymentMethod
 import kotlinx.coroutines.runBlocking
 import org.springframework.kafka.annotation.KafkaListener
@@ -51,37 +50,48 @@ class OrderEventConsumer(
         val paymentDetails = when (paymentMethodStr) {
             "COMPOSITE" -> {
                 // 복합결제 예시 (실제로는 주문 서비스에서 더 상세한 정보를 전달해야 함)
-                mapOf(
-                    "paymentPlan" to CompositePaymentPlan(
-                        mainMethod = PaymentMethod.PG_KPN,
-                        mainAmount = totalAmount * 70 / 100, // 70%는 PG
-                        mainMetadata = mapOf("cardNumber" to "1234-5678-9012-3456"),
-                        subPayments = listOf(
-                            SubPayment(
-                                method = PaymentMethod.CASHNOTE_POINT,
-                                amount = totalAmount * 20 / 100, // 20%는 포인트
-                                metadata = emptyMap()
-                            ),
-                            SubPayment(
-                                method = PaymentMethod.COUPON,
-                                amount = totalAmount * 10 / 100, // 10%는 쿠폰
-                                metadata = mapOf("couponCode" to "WELCOME10")
-                            )
-                        )
+                listOf(
+                    PaymentDetailCommand(
+                        method = PaymentMethod.PG_KPN,
+                        amount = totalAmount * 70 / 100, // 70%는 PG
+                        metadata = mapOf("cardNumber" to "1234-5678-9012-3456")
+                    ),
+                    PaymentDetailCommand(
+                        method = PaymentMethod.CASHNOTE_POINT,
+                        amount = totalAmount * 20 / 100, // 20%는 포인트
+                        metadata = emptyMap()
+                    ),
+                    PaymentDetailCommand(
+                        method = PaymentMethod.COUPON,
+                        amount = totalAmount * 10 / 100, // 10%는 쿠폰
+                        metadata = mapOf("couponCode" to "WELCOME10")
                     )
                 )
             }
             "BNPL" -> {
-                mapOf("installmentMonths" to 3)
+                listOf(
+                    PaymentDetailCommand(
+                        method = PaymentMethod.BNPL,
+                        amount = totalAmount,
+                        metadata = mapOf("installmentMonths" to 3)
+                    )
+                )
             }
-            else -> emptyMap()
+            else -> {
+                listOf(
+                    PaymentDetailCommand(
+                        method = PaymentMethod.valueOf(paymentMethodStr),
+                        amount = totalAmount,
+                        metadata = emptyMap()
+                    )
+                )
+            }
         }
         
         val command = ProcessPaymentCommand(
             orderId = orderId,
             memberId = memberId,
             totalAmount = totalAmount,
-            paymentMethod = paymentMethodStr,
             paymentDetails = paymentDetails
         )
         

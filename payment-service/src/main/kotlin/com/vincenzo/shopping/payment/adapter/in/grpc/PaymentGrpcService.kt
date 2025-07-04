@@ -20,7 +20,7 @@ class PaymentGrpcService(
                 PaymentDetailCommand(
                     method = PaymentMethod.valueOf(detail.method),
                     amount = detail.amount,
-                    metadata = detail.metadataMap
+                    metadata = detail.metadataMap.mapValues { it.value }
                 )
             }
         )
@@ -46,12 +46,11 @@ private fun com.vincenzo.shopping.payment.domain.Payment.toGrpcResponse(): Payme
         .setStatus(this.status.name)
         .addAllPaymentDetails(this.paymentDetails.map { detail ->
             PaymentDetailResponse.newBuilder()
-                .setId(detail.id ?: 0)
                 .setMethod(detail.method.name)
                 .setAmount(detail.amount)
                 .setTransactionId(detail.transactionId ?: "")
                 .setStatus(detail.status.name)
-                .putAllMetadata(detail.metadata)
+                .putAllMetadata(detail.metadata.mapValues { it.value.toString() })
                 .build()
         })
         .setCreatedAt(this.createdAt.toString())
